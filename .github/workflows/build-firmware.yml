@@ -1,0 +1,80 @@
+# Checks the code and builds the Core2 firmware every time main changes.
+# The finished firmware appears under Actions > (latest run) > Artifacts.
+name: Build Core2 firmware
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # "Run workflow" button on the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Check CareLink parsing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get ArduinoJson 7.4.2
+        run: git clone --quiet --depth 1 -b v7.4.2 https://github.com/bblanchon/ArduinoJson.git "$RUNNER_TEMP/ArduinoJson"
+
+      - name: Run the CareLink tests
+        run: |
+          g++ -std=c++17 -Wall -I. -I"$RUNNER_TEMP/ArduinoJson/src" test/carelink_parse_test.cpp -o "$RUNNER_TEMP/cltest"
+          "$RUNNER_TEMP/cltest"
+
+  build:
+    name: Build Core2 firmware
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      # The folder must be named like the .ino file for the Arduino build to accept it.
+      - uses: actions/checkout@v4
+        with:
+          path: M5_NightscoutMon
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      # The ESP32 build tools are Python scripts that need pyserial; a setup-python
+      # interpreter allows pip installs (the runner's system Python does not).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the ESP32 board package and libraries (versions from Scripts/deps.psd1)
+        run: |
+          pip install --quiet pyserial
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@2.0.16
+          arduino-cli lib install "M5Unified@0.2.7" "M5GFX@0.2.9" "ArduinoJson@7.4.2" "Adafruit NeoPixel@1.15.1"
+
+      - name: Compile for Core2 (same settings as the official ESP32_16MB release)
+        run: |
+          arduino-cli compile \
+            --fqbn esp32:esp32:m5stack-fire:PartitionScheme=default,PSRAM=disabled \
+            --output-dir build \
+            M5_NightscoutMon
+
+      - name: Make the single install file (flash at address 0x0)
+        run: |
+          mkdir -p firmware
+          cp build/M5_NightscoutMon.ino.bin build/M5_NightscoutMon.ino.bootloader.bin build/M5_NightscoutMon.ino.partitions.bin firmware/
+          # esptool that ships with the ESP32 board package (needs only pyserial)
+          ESPTOOL=$(find ~/.arduino15/packages/esp32/tools/esptool_py -name esptool.py | head -1)
+          python3 "$ESPTOOL" --chip esp32 merge_bin -o firmware/M5NS-CareLink-Core2-full.bin \
+            --flash_mode dio --flash_freq 80m --flash_size 16MB \
+            0x1000 build/M5_NightscoutMon.ino.bootloader.bin \
+            0x8000 build/M5_NightscoutMon.ino.partitions.bin \
+            0x10000 build/M5_NightscoutMon.ino.bin
+          echo "Built from commit ${GITHUB_SHA::7} on $(date -u +%Y-%m-%d)" > firmware/VERSION.txt
+          ls -la firmware
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: M5NS-CareLink-Core2-firmware
+          path: firmware/
+          retention-days: 30
