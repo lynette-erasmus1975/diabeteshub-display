@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en-IE">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install the DiabetesHub display</title>
+<meta name="description" content="Step-by-step: put the DiabetesHub display software on an M5Stack Core2 from your browser. Free, from diabeteshub.ie.">
+<meta name="robots" content="noindex">
+<script type="module" src="https://unpkg.com/esp-web-tools@10.1.0/dist/web/install-button.js?module"></script>
+<style>
+  :root{
+    --navy:#1E3A8A;--mint:#86EFAC;--blue:#1D4ED8;--green:#15803D;--red:#BE123C;
+    --bg:#F0F6FF;--card:#FFFFFF;--text:#111827;--muted:#4C6272;--border:#E5E7EB;--soft:#F1F5F9;
+    --warn-bg:#FEF3C7;--warn-bd:#B45309;--warn-tx:#78350F;
+    --no-bg:#FFE4E6;--no-bd:#BE123C;--no-tx:#881337;
+    --ok-bg:#F0FDF4;--ok-bd:#15803D;--ok-tx:#14532D;
+    --sh:0 2px 12px rgba(29,78,216,.09);
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0B1220;--card:#151E2E;--text:#E5E7EB;--muted:#A3AEBF;--border:#2A3648;--soft:#1B2535;--blue:#93C5FD;--green:#86EFAC;--red:#FDA4AF;
+    --warn-bg:#3A2A12;--warn-bd:#F2B35E;--warn-tx:#FDE68A;
+    --no-bg:#3B0D18;--no-bd:#FDA4AF;--no-tx:#FECDD3;
+    --ok-bg:#10291D;--ok-bd:#86EFAC;--ok-tx:#BBF7D0;--sh:0 2px 12px rgba(0,0,0,.35);
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  header{background:var(--navy);color:#fff}
+  .hd{max-width:760px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;gap:12px}
+  .hd>svg{width:48px;height:48px;flex-shrink:0}
+  .nm{font-size:21px;font-weight:800;letter-spacing:-.01em;line-height:1.1}
+  .nm span{color:var(--mint)}
+  .tg{font-size:11px;letter-spacing:.22em;color:#C9D3F2;text-transform:uppercase;margin-top:2px}
+  main{max-width:760px;margin:0 auto;padding:22px 16px 40px}
+  h1{font-size:27px;line-height:1.2;margin:0 0 6px}
+  h2{font-size:20px;line-height:1.25;margin:28px 0 12px}
+  .lead{color:var(--muted);margin:0 0 18px}
+  .note{border-radius:12px;padding:12px 14px;margin:0 0 14px;font-size:16px}
+  .warn{background:var(--warn-bg);border:1px solid var(--warn-bd);color:var(--warn-tx)}
+  .no{background:var(--no-bg);border:1px solid var(--no-bd);color:var(--no-tx);display:none}
+  .ok{background:var(--ok-bg);border:1px solid var(--ok-bd);color:var(--ok-tx)}
+  .card{background:var(--card);border:1px solid var(--border);border-left:4px solid var(--mint);border-radius:16px;box-shadow:var(--sh);padding:16px 18px;margin:0 0 14px}
+  .card ul{margin:0;padding-left:22px}.card li{margin:0 0 6px}
+  .lic{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+  /* Which computer works */
+  .works{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 6px}
+  .w{display:flex;align-items:center;gap:10px;background:var(--soft);border-radius:12px;padding:10px 12px;font-size:16px;font-weight:600}
+  .w .tick{color:var(--green)}.w .cross{color:var(--red)}
+  .w small{display:block;font-weight:400;color:var(--muted);font-size:13px}
+  /* Steps */
+  .step{display:grid;grid-template-columns:44px 1fr;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:var(--sh);padding:16px;margin:0 0 14px}
+  .num{width:40px;height:40px;border-radius:50%;background:var(--navy);color:#fff;font-weight:800;font-size:19px;display:flex;align-items:center;justify-content:center}
+  .step h3{margin:6px 0 6px;font-size:18px;line-height:1.3}
+  .step p{margin:0 0 8px}
+  .step ul{margin:0 0 8px;padding-left:20px}.step li{margin:0 0 5px}
+  .os{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:var(--soft);color:var(--muted);border-radius:6px;padding:1px 7px;margin-right:4px}
+  .pic{grid-column:1/-1;background:var(--soft);border-radius:12px;padding:12px;margin-top:4px}
+  .pic>svg{width:100%;height:auto;display:block;max-width:520px;margin:0 auto}
+  .cap{font-size:13px;color:var(--muted);text-align:center;margin:6px 0 0}
+  /* Install button */
+  .inst-pic{text-align:center;background:var(--card);border:2px solid var(--navy)}
+  .dev{font-size:20px;font-weight:800;margin:2px 0}
+  .ver{font-size:14px;color:var(--muted);margin:0 0 14px}
+  esp-web-install-button button{display:inline-flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:56px;padding:0 20px;border:none;border-radius:12px;background:var(--navy);color:#fff;font:inherit;font-size:19px;font-weight:700;cursor:pointer}
+  esp-web-install-button button:hover{background:#1D4ED8}
+  esp-web-install-button button .lic{stroke:var(--mint)}
+  esp-web-install-button button[disabled]{opacity:.5;cursor:not-allowed}
+  details{background:var(--card);border:1px solid var(--border);border-radius:14px;margin:0 0 10px;padding:0 16px}
+  summary{cursor:pointer;font-weight:700;min-height:48px;display:flex;align-items:center;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"+";margin-left:auto;font-size:22px;color:var(--muted)}
+  details[open] summary::after{content:"–"}
+  details>div{padding:0 0 14px}
+  details p{margin:0 0 8px}
+  a{color:var(--blue);font-weight:700;text-underline-offset:2px}
+  footer{max-width:760px;margin:0 auto;padding:0 16px 32px;font-size:14px;color:var(--muted);text-align:center}
+  footer b{color:var(--text)}
+  /* drawings follow light and dark */
+  .d-bg{fill:#fff;stroke:#CBD5E1}.d-ink{fill:#111827}.d-mut{fill:#4C6272}.d-ln{stroke:#94A3B8;fill:none}
+  .d-nav{fill:#1E3A8A}.d-mint{fill:#86EFAC}.d-soft{fill:#F1F5F9}.d-sel{fill:#DBEAFE}
+  @media (prefers-color-scheme:dark){.d-bg{fill:#0F172A;stroke:#334155}.d-ink{fill:#E5E7EB}.d-mut{fill:#A3AEBF}.d-soft{fill:#1E293B}.d-sel{fill:#1E3A5F}}
+</style>
+</head>
+<body>
+<header><div class="hd">
+  <svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><circle cx="50" cy="50" r="47" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/><path d="M50 10 C50 10 44 16.3 44 19.5 C44 22.6 47 24 50 24 C53 24 56 22.6 56 19.5 C56 16.3 50 10 50 10Z" fill="#86EFAC"/><path d="M50 84 C20 64 14 46 22 36 C30 27 43 30 50 40 C57 30 70 27 78 36 C86 46 80 64 50 84Z" fill="rgba(255,255,255,0.14)" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/><path d="M24 56 L38 56 L43 46 L50 68 L56 50 L60 56 L76 56" stroke="#86EFAC" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <div><div class="nm">Diabetes<span>Hub</span></div><div class="tg">Ireland</div></div>
+</div></header>
+
+<main>
+  <h1>Install the DiabetesHub display</h1>
+  <p class="lead">This page puts the display software onto your M5Stack Core2. You only do this once. It's free, takes about 5 minutes, and you don't need any technical knowledge. Just follow the steps in order.</p>
+
+  <div class="note warn"><b>Not a medical device.</b> The display is a convenience only. Never use it to make treatment decisions. Always check readings on your pump, sensor app or a finger-prick test, and keep your phone app's alarms switched on.</div>
+
+  <div class="note no" id="unsupported"><b>You can't install from this phone, tablet or browser.</b> Please open this page on a <b>laptop or desktop computer</b>, in <b>Google Chrome</b> or <b>Microsoft Edge</b>. Tip: send yourself the link so you can open it on your computer. The setup after installing is done on your phone.</div>
+
+  <h2>Which computer can I use?</h2>
+  <div class="works" aria-label="Computers that can install the software">
+    <div class="w"><svg class="lic tick" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Windows laptop or PC<small>in Chrome or Edge</small></span></div>
+    <div class="w"><svg class="lic tick" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Apple Mac<small>in Chrome or Edge, not Safari</small></span></div>
+    <div class="w"><svg class="lic tick" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Chromebook<small>in Chrome</small></span></div>
+    <div class="w"><svg class="lic cross" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg><span>Phone or iPad<small>can't install, used for setup later</small></span></div>
+  </div>
+  <p style="font-size:15px;color:var(--muted);margin:6px 0 0">The steps are the same on every computer. Where Windows and Mac differ, it says so.</p>
+
+  <h2>You'll need</h2>
+  <div class="card">
+    <ul>
+      <li>Your <b>M5Stack Core2</b> display</li>
+      <li>A <b>USB-C cable that carries data</b>. The one that came in the box is best. Some phone charging cables only charge, and won't work.</li>
+      <li>A <b>laptop or desktop computer</b> with Google Chrome or Microsoft Edge</li>
+    </ul>
+  </div>
+
+  <h2>Step by step</h2>
+
+  <div class="step"><div class="num">1</div><div>
+    <h3>Open this page in Chrome or Edge, on your computer</h3>
+    <p>If you're reading this in Safari or Firefox, copy the address at the top of the screen and paste it into Chrome or Edge.</p>
+    <p><span class="os">Windows</span> Edge is already installed. <span class="os">Mac</span> Download Chrome free from google.com/chrome if you don't have it.</p>
+  </div></div>
+
+  <div class="step"><div class="num">2</div><div>
+    <h3>Plug the display into the computer</h3>
+    <p>Use the USB-C cable. Plug it straight into the computer, not into a hub or a keyboard. The display may switch on by itself, which is fine.</p>
+  </div>
+    <div class="pic"><svg viewBox="0 0 520 170" role="img" aria-label="A laptop connected by a USB-C cable to the M5Stack Core2 display">
+      <rect class="d-bg" x="30" y="20" width="230" height="130" rx="10" stroke-width="2"/><rect class="d-soft" x="44" y="32" width="202" height="98" rx="4"/><rect class="d-bg" x="10" y="150" width="270" height="12" rx="6" stroke-width="2"/>
+      <path d="M280 145 C330 145 330 110 380 110" stroke="#1E3A8A" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <rect x="380" y="45" width="120" height="110" rx="14" fill="#111827"/><rect x="392" y="56" width="96" height="72" rx="4" fill="#0B1220"/><text x="440" y="100" text-anchor="middle" font-family="Arial" font-weight="700" font-size="26" fill="#86EFAC">6.4</text>
+      <circle cx="410" cy="141" r="5" fill="#475569"/><circle cx="440" cy="141" r="5" fill="#475569"/><circle cx="470" cy="141" r="5" fill="#475569"/>
+    </svg><p class="cap">The display connects to the computer with the USB-C cable</p></div>
+  </div>
+
+  <div class="step" id="install"><div class="num">3</div><div>
+    <h3>Press Connect and install</h3>
+    <p>A small box opens at the top of your screen.</p>
+  </div>
+    <div class="pic inst-pic">
+      <div class="dev">M5Stack Core2</div>
+      <p class="ver">Latest version: <b id="ver">checking…</b></p>
+      <esp-web-install-button manifest="manifest.json">
+        <button slot="activate"><svg class="lic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Connect and install</button>
+        <span slot="unsupported"></span>
+        <span slot="not-allowed"></span>
+      </esp-web-install-button>
+      <p style="font-size:14px;color:var(--muted);margin:10px 0 0">Installing replaces anything already on the display, including any saved Wi-Fi and CareLink sign-in. You'll set those up again in step 7.</p>
+    </div>
+  </div>
+
+  <div class="step"><div class="num">4</div><div>
+    <h3>Choose your display in the list, then press Connect</h3>
+    <p>There's usually only one thing in the list. Its name includes <b>USB</b>, <b>Serial</b>, <b>CH9102</b> or <b>CP210</b>. Click it, then press <b>Connect</b>.</p>
+    <p>If the list is empty, see <a href="#help-empty">"The list is empty"</a> below.</p>
+  </div>
+    <div class="pic"><svg viewBox="0 0 520 210" role="img" aria-label="The browser box asking which device to connect to, with the display selected and the Connect button">
+      <rect class="d-bg" x="60" y="10" width="400" height="190" rx="10" stroke-width="2"/>
+      <text class="d-ink" x="80" y="40" font-family="Arial" font-size="15" font-weight="700">This page wants to connect to a serial port</text>
+      <rect class="d-sel" x="80" y="58" width="360" height="40" rx="6"/><text class="d-ink" x="94" y="83" font-family="Arial" font-size="14">USB Single Serial (CH9102)</text>
+      <rect x="80" y="58" width="4" height="40" fill="#1D4ED8"/>
+      <path d="M410 70 l12 12 l-6 1 l4 8 l-3 2 l-4 -8 l-5 4 z" fill="#111827" stroke="#fff" stroke-width="1"/>
+      <rect class="d-soft" x="270" y="150" width="80" height="34" rx="17"/><text class="d-mut" x="310" y="172" text-anchor="middle" font-family="Arial" font-size="14">Cancel</text>
+      <rect x="360" y="150" width="80" height="34" rx="17" fill="#1D4ED8"/><text x="400" y="172" text-anchor="middle" font-family="Arial" font-size="14" font-weight="700" fill="#fff">Connect</text>
+    </svg><p class="cap">The name may look a little different on your computer</p></div>
+  </div>
+
+  <div class="step"><div class="num">5</div><div>
+    <h3>Press Install, tick Erase device, then press Next and Install</h3>
+    <ul>
+      <li>Press the <b>Install</b> button. It may say <b>Install DiabetesHub display</b>.</li>
+      <li>It asks whether to erase the device. Tick <b>Erase device</b> and press <b>Next</b>.</li>
+      <li>Press <b>Install</b> to confirm.</li>
+    </ul>
+  </div>
+    <div class="pic"><svg viewBox="0 0 520 200" role="img" aria-label="The install box with Erase device ticked and the Next button">
+      <rect class="d-bg" x="60" y="10" width="400" height="180" rx="10" stroke-width="2"/>
+      <text class="d-ink" x="80" y="44" font-family="Arial" font-size="16" font-weight="700">Erase device</text>
+      <text class="d-mut" x="80" y="72" font-family="Arial" font-size="13">Do you want to erase the device before installing</text>
+      <text class="d-mut" x="80" y="90" font-family="Arial" font-size="13">DiabetesHub display (M5Stack Core2)?</text>
+      <rect x="80" y="110" width="22" height="22" rx="4" fill="#1D4ED8"/><path d="M85 121 l5 5 l8 -10" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/><text class="d-ink" x="112" y="127" font-family="Arial" font-size="14" font-weight="700">Erase device</text>
+      <text x="420" y="172" text-anchor="end" font-family="Arial" font-size="15" font-weight="700" fill="#1D4ED8">NEXT</text>
+    </svg><p class="cap">Erasing clears any old software, so the display starts fresh</p></div>
+  </div>
+
+  <div class="step"><div class="num">6</div><div>
+    <h3>Wait until it says Installation complete</h3>
+    <p>It takes about 2 minutes. <b>Don't unplug the display or close the page</b> while it's installing. When it says <b>Installation complete</b>, press <b>Next</b> or <b>Close</b>, then unplug the display.</p>
+  </div>
+    <div class="pic"><svg viewBox="0 0 520 120" role="img" aria-label="Installing progress bar, then Installation complete">
+      <rect class="d-bg" x="20" y="10" width="230" height="100" rx="10" stroke-width="2"/><text class="d-ink" x="36" y="40" font-family="Arial" font-size="14" font-weight="700">Installing… 64%</text><rect class="d-soft" x="36" y="58" width="198" height="12" rx="6"/><rect x="36" y="58" width="127" height="12" rx="6" fill="#1D4ED8"/><text class="d-mut" x="36" y="92" font-family="Arial" font-size="12">Keep the display plugged in</text>
+      <rect class="d-bg" x="270" y="10" width="230" height="100" rx="10" stroke-width="2"/><circle cx="300" cy="44" r="14" fill="#15803D"/><path d="M293 44 l5 5 l9 -10" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/><text class="d-ink" x="324" y="49" font-family="Arial" font-size="14" font-weight="700">Installation complete!</text><text x="480" y="92" text-anchor="end" font-family="Arial" font-size="13" font-weight="700" fill="#1D4ED8">NEXT</text>
+    </svg></div>
+  </div>
+
+  <div class="step"><div class="num">7</div><div>
+    <h3>Set it up on your phone</h3>
+    <p>Plug the display into a phone charger or leave it on battery. It shows its own Wi-Fi name, starting with <b>M5NS</b>, with a password and a code to scan. Join it from your phone, then add your home Wi-Fi and your CareLink care partner sign-in.</p>
+    <p>The full setup guide is on <a href="https://diabeteshub.ie/devices">diabeteshub.ie, in Devices, DIY Display</a>.</p>
+  </div></div>
+
+
+  <h2>If something goes wrong</h2>
+  <details id="help-empty"><summary>The list is empty, or the display isn't in it</summary><div>
+    <p><b>1. Try another cable.</b> This is the most common cause. Many cables only charge. The cable that came with the display works.</p>
+    <p><b>2. Plug it straight into the computer</b>, not a hub or keyboard, and try another USB port.</p>
+    <p><b>3. Install the USB driver</b>, then restart the computer and try again. A driver is a small free program that lets the computer talk to the display. Download it from M5Stack, the company that makes the display:</p>
+    <ul>
+      <li><span class="os">Windows</span> <a href="https://m5stack.oss-cn-shenzhen.aliyuncs.com/resource/drivers/CH9102_VCP_SER_Windows.exe">CH9102 driver for Windows</a>. Open the file and press Install.</li>
+      <li><span class="os">Mac</span> <a href="https://m5stack.oss-cn-shenzhen.aliyuncs.com/resource/drivers/CH9102_VCP_MacOS_v1.7.zip">CH9102 driver for Mac</a>. Open the file and follow the steps. It may show an error at the end, but it still works.</li>
+      <li>Older Core2 displays, bought before 2021, use a different chip. If the driver above doesn't help, get the CP210x driver from <a href="https://docs.m5stack.com/en/download">M5Stack's download page</a>.</li>
+    </ul>
+    <p><span class="os">Chromebook</span> No driver is needed. Try another cable or port.</p>
+  </div></details>
+  <details><summary>It stopped, or says it failed</summary><div>
+    <p>Unplug the display, wait 10 seconds, plug it back in, then start again from step 3. Nothing is broken: you can install as many times as you like.</p>
+    <p>Close any other program that might be using the display, then try again.</p>
+  </div></details>
+  <details><summary>The blue button is grey</summary><div>
+    <p>Your browser can't install. Open this page in <b>Google Chrome</b> or <b>Microsoft Edge</b> on a laptop or desktop computer. Safari, Firefox, phones and iPads can't do this step.</p>
+  </div></details>
+  <details><summary>The display screen stays black after installing</summary><div>
+    <p>Press the small power button on the left side of the display for 2 seconds. If it's still black, charge it for 15 minutes and try again.</p>
+  </div></details>
+  <p style="font-size:15px;color:var(--muted)">Still stuck? Email <a href="mailto:diabeteshub.ie@gmail.com">diabeteshub.ie@gmail.com</a> with a photo of your screen.</p>
+</main>
+
+<footer>
+  <p><b>diabeteshub.ie</b></p>
+  <p>Free software under the GNU GPL v3, based on the M5Stack Nightscout monitor by Martin Lukasek, Patrick Sonnerat and contributors. <a href="https://github.com/lynette-erasmus1975/diabeteshub-display">See the code</a>.</p>
+</footer>
+
+<script>
+  if (!('serial' in navigator)) {
+    document.getElementById('unsupported').style.display = 'block';
+    var b = document.querySelector('esp-web-install-button button'); if (b) b.disabled = true;
+  }
+  fetch('VERSION.txt', {cache: 'no-store'}).then(function (r) { return r.ok ? r.text() : ''; }).then(function (t) {
+    var m = (t || '').match(/commit (\w+) on (\d{4})-(\d{2})-(\d{2})/), el = document.getElementById('ver');
+    if (!m) { el.textContent = 'unknown'; return; }
+    var d = new Date(m[2] + '-' + m[3] + '-' + m[4] + 'T12:00:00');
+    el.textContent = d.toLocaleDateString('en-IE', {day: 'numeric', month: 'long', year: 'numeric'}) + ' (' + m[1] + ')';
+  }).catch(function () { document.getElementById('ver').textContent = 'unknown'; });
+</script>
+</body>
+</html>
