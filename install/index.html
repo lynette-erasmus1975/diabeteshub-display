@@ -10,7 +10,7 @@
 <style>
   :root{
     --navy:#1E3A8A;--mint:#86EFAC;--blue:#1D4ED8;--green:#15803D;--red:#BE123C;
-    --bg:#F0F6FF;--card:#FFFFFF;--text:#111827;--muted:#4C6272;--border:#E5E7EB;--soft:#F1F5F9;
+    --bg:#F7F8FA;--card:#FFFFFF;--text:#111827;--muted:#4B5563;--border:#E5E7EB;--soft:#F1F5F9;
     --warn-bg:#FEF3C7;--warn-bd:#B45309;--warn-tx:#78350F;
     --no-bg:#FFE4E6;--no-bd:#BE123C;--no-tx:#881337;
     --ok-bg:#F0FDF4;--ok-bd:#15803D;--ok-tx:#14532D;
@@ -87,16 +87,85 @@
   .wg-norm{background:var(--ok-bg);border-left:4px solid var(--ok-bd);border-radius:8px;padding:8px 12px;margin:8px 0 0;font-size:16px}
   .wg-back{display:block;text-align:center;font-weight:700;background:var(--navy);color:#fff!important;border-radius:12px;padding:14px;margin-top:12px;text-decoration:none}
   @media (max-width:420px){.wg-hero{flex-direction:column;align-items:flex-start}}
+  /* Appearance button and chooser: copied from diabeteshub.ie so they look and work the same */
+  .thb{margin-left:auto;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+  .thb:hover{background:rgba(255,255,255,.26)}
+  .ico{stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;display:inline-block;vertical-align:-.2em}
+  .thb .ico{width:21px;height:21px}
+  .th-bd{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:600}
+  .th-box{background:#fff;border-radius:20px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(29,78,216,.2);overflow:hidden;animation:thIn .28s cubic-bezier(.34,1.3,.64,1)}
+  @keyframes thIn{from{opacity:0;transform:scale(.88) translateY(12px)}to{opacity:1;transform:none}}
+  .th-hd{background:#1E3A8A;color:#fff;padding:22px 24px 18px;position:relative}
+  .th-eb{font-size:12px;opacity:.7;text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px}
+  .th-tt{font-size:clamp(17px,3vw,22px);font-weight:700;line-height:1.3;letter-spacing:normal;margin:0;padding-right:36px}
+  .th-x{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.18);border:0;width:30px;height:30px;border-radius:50%;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center;padding:0}
+  .th-x:hover{background:rgba(255,255,255,.32)}
+  .th-x .ico{width:16px;height:16px;stroke-width:2.4}
+  .th-bo{padding:14px 16px 18px;max-height:60vh;overflow-y:auto}
+  .th-opt{width:100%;display:flex;align-items:center;gap:13px;text-align:left;background:#F9FAFB;border:2px solid #E5E7EB;border-radius:12px;padding:13px 14px;margin:0 0 9px;cursor:pointer;font:inherit;line-height:normal;color:#111827;min-height:60px}
+  .th-opt:hover{border-color:#1D4ED8}
+  .th-opt.sel{border-color:#1D4ED8;background:#DBEAFE}
+  .th-opt>.ico{width:30px;height:30px;flex-shrink:0}
+  .th-tx{display:flex;flex-direction:column;gap:2px;font-size:16px;color:#4B5563}
+  .th-tx strong{font-size:16px;color:#111827}
+  .th-tx em{font-style:normal;font-size:12px;font-weight:700;background:#DBEDE2;color:#12873D;border-radius:20px;padding:1px 8px;margin-left:4px}
+  .th-ft{font-size:15px;line-height:1.7;color:#4B5563;margin:6px 0 0}
+  .th-ft .ico{width:1.15em;height:1.15em;margin:0 .2em}
+  [data-theme="dark"] .th-box{background:#151E2E}
+  [data-theme="dark"] .th-opt{background:#1B2535;border-color:#2A3648;color:#E5E7EB}
+  [data-theme="dark"] .th-opt.sel{background:#1E3A5F;border-color:#1D4ED8}
+  [data-theme="dark"] .th-tx,[data-theme="dark"] .th-ft{color:#A3AEBF}
+  [data-theme="dark"] .th-tx strong{color:#E5E7EB}
+  [data-theme="dark"] .th-tx em{background:#152E30}
 </style>
 <script>
-/* Light like diabeteshub.ie. Dark only when DiabetesHub is set to dark (it adds ?theme=dark to the link) */
-(function(){try{var t=new URLSearchParams(location.search).get('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();
+/* Light like diabeteshub.ie by default. The DiabetesHub link adds ?theme=dark or ?theme=light; the button at the top lets people change it here too. */
+(function(){
+  var q=null,c=null;
+  try{q=new URLSearchParams(location.search).get('theme');}catch(e){}
+  try{c=localStorage.getItem('wg_theme');}catch(e){}
+  if(q==='dark'||q==='light'){c=q;try{localStorage.setItem('wg_theme',q);}catch(e){}}
+  if(c!=='dark'&&c!=='system')c='light';
+  window.WG_THEME=c;
+  var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+  window.wgApply=function(){
+    var d=WG_THEME==='dark'||(WG_THEME==='system'&&mq&&mq.matches);
+    if(d)document.documentElement.setAttribute('data-theme','dark');else document.documentElement.removeAttribute('data-theme');
+    var b=document.getElementById('thb');
+    if(b)b.innerHTML=wgIco(d?'moon':'sun');
+  };
+  wgApply();
+  if(mq&&mq.addEventListener)mq.addEventListener('change',function(){if(WG_THEME==='system')wgApply();});
+})();
+var WG_I={sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',moon:'<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',phone:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',x:'<path d="M6 6l12 12M18 6L6 18"/>'};
+function wgIco(k){return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">'+WG_I[k]+'</svg>';}
+function wgSet(t){WG_THEME=t;try{localStorage.setItem('wg_theme',t);}catch(e){}wgApply();wgClose();}
+function wgClose(){var b=document.getElementById('thBd');if(!b)return;b.remove();var t=document.getElementById('thb');if(t)t.focus();}
+function wgOpen(){
+  wgClose();
+  var o=[
+    ['light','sun','Light','Bright and clean. This is the standard look.','Standard'],
+    ['dark','moon','Dark','Easier on the eyes at night or in low light.'],
+    ['system','phone','Match my device','Follow my phone or computer setting automatically.']
+  ];
+  var bd=document.createElement('div');bd.className='th-bd';bd.id='thBd';
+  bd.setAttribute('role','dialog');bd.setAttribute('aria-modal','true');bd.setAttribute('aria-labelledby','thT');
+  bd.innerHTML='<div class="th-box"><div class="th-hd"><div class="th-eb">Appearance</div><h2 class="th-tt" id="thT">How would you like DiabetesHub to look?</h2><button class="th-x" onclick="wgClose()" aria-label="Close">'+wgIco('x')+'</button></div><div class="th-bo">'+
+    o.map(function(x){var s=x[0]===WG_THEME;return '<button class="th-opt'+(s?' sel':'')+'" onclick="wgSet(\''+x[0]+'\')"'+(s?' aria-current="true"':'')+'>'+wgIco(x[1])+'<span class="th-tx"><strong>'+x[2]+(x[4]?' <em>'+x[4]+'</em>':'')+'</strong><span>'+x[3]+'</span></span></button>';}).join('')+
+    '<p class="th-ft">You can change this any time with the '+wgIco('sun')+' / '+wgIco('moon')+' button at the top.</p></div></div>';
+  bd.addEventListener('click',function(e){if(e.target===bd)wgClose();});
+  document.body.appendChild(bd);
+  var s=bd.querySelector('.th-opt.sel');if(s)s.focus();
+}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')wgClose();});
+document.addEventListener('DOMContentLoaded',wgApply);
 </script>
 </head>
 <body>
 <header><div class="hd">
   <svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><circle cx="50" cy="50" r="47" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/><path d="M50 10 C50 10 44 16.3 44 19.5 C44 22.6 47 24 50 24 C53 24 56 22.6 56 19.5 C56 16.3 50 10 50 10Z" fill="#86EFAC"/><path d="M50 84 C20 64 14 46 22 36 C30 27 43 30 50 40 C57 30 70 27 78 36 C86 46 80 64 50 84Z" fill="rgba(255,255,255,0.14)" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/><path d="M24 56 L38 56 L43 46 L50 68 L56 50 L60 56 L76 56" stroke="#86EFAC" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
   <div><div class="nm">Diabetes<span>Hub</span></div><div class="tg">Ireland</div></div>
+  <button id="thb" class="thb" onclick="wgOpen()" aria-haspopup="dialog" aria-label="Choose light or dark appearance" title="Appearance"></button>
 </div></header>
 
 <main>
