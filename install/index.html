@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Install the DiabetesHub display</title>
-<meta name="description" content="Step-by-step: put the DiabetesHub display software on an M5Stack Core2 from your browser. Free, from diabeteshub.ie.">
+<title>Install Wee Glo</title>
+<meta name="description" content="Step-by-step: put the Wee Glo software on an M5Stack Core2 from your browser. Free, from diabeteshub.ie.">
 <meta name="robots" content="noindex">
 <script type="module" src="https://unpkg.com/esp-web-tools@10.1.0/dist/web/install-button.js?module"></script>
 <style>
@@ -16,12 +16,12 @@
     --ok-bg:#F0FDF4;--ok-bd:#15803D;--ok-tx:#14532D;
     --sh:0 2px 12px rgba(29,78,216,.09);
   }
-  @media (prefers-color-scheme:dark){:root{
+    :root[data-theme="dark"]{
     --bg:#0B1220;--card:#151E2E;--text:#E5E7EB;--muted:#A3AEBF;--border:#2A3648;--soft:#1B2535;--blue:#93C5FD;--green:#86EFAC;--red:#FDA4AF;
     --warn-bg:#3A2A12;--warn-bd:#F2B35E;--warn-tx:#FDE68A;
     --no-bg:#3B0D18;--no-bd:#FDA4AF;--no-tx:#FECDD3;
     --ok-bg:#10291D;--ok-bd:#86EFAC;--ok-tx:#BBF7D0;--sh:0 2px 12px rgba(0,0,0,.35);
-  }}
+  }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
   header{background:var(--navy);color:#fff}
@@ -77,8 +77,21 @@
   /* drawings follow light and dark */
   .d-bg{fill:#fff;stroke:#CBD5E1}.d-ink{fill:#111827}.d-mut{fill:#4C6272}.d-ln{stroke:#94A3B8;fill:none}
   .d-nav{fill:#1E3A8A}.d-mint{fill:#86EFAC}.d-soft{fill:#F1F5F9}.d-sel{fill:#DBEAFE}
-  @media (prefers-color-scheme:dark){.d-bg{fill:#0F172A;stroke:#334155}.d-ink{fill:#E5E7EB}.d-mut{fill:#A3AEBF}.d-soft{fill:#1E293B}.d-sel{fill:#1E3A5F}}
+  [data-theme="dark"] .d-bg{fill:#0F172A;stroke:#334155}[data-theme="dark"] .d-ink{fill:#E5E7EB}[data-theme="dark"] .d-mut{fill:#A3AEBF}[data-theme="dark"] .d-soft{fill:#1E293B}[data-theme="dark"] .d-sel{fill:#1E3A5F}
+  /* Wee Glo, the same picture as on diabeteshub.ie */
+  .wg-hero{display:flex;gap:16px;align-items:center;margin:4px 0 14px}
+  .wg-screen{flex:none;width:132px}
+  .wg-screen .wg-svg{width:100%;height:auto;display:block;filter:drop-shadow(0 4px 10px rgba(15,23,42,.18))}
+  .wg-sub{margin:6px 0 0;padding-left:22px}
+  .wg-sub li{margin-bottom:8px}
+  .wg-norm{background:var(--ok-bg);border-left:4px solid var(--ok-bd);border-radius:8px;padding:8px 12px;margin:8px 0 0;font-size:16px}
+  .wg-back{display:block;text-align:center;font-weight:700;background:var(--navy);color:#fff!important;border-radius:12px;padding:14px;margin-top:12px;text-decoration:none}
+  @media (max-width:420px){.wg-hero{flex-direction:column;align-items:flex-start}}
 </style>
+<script>
+/* Light like diabeteshub.ie. Dark only when DiabetesHub is set to dark (it adds ?theme=dark to the link) */
+(function(){try{var t=new URLSearchParams(location.search).get('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();
+</script>
 </head>
 <body>
 <header><div class="hd">
@@ -87,8 +100,8 @@
 </div></header>
 
 <main>
-  <h1>Install the DiabetesHub display</h1>
-  <p class="lead">This page puts the display software onto your M5Stack Core2. You only do this once. It's free, takes about 5 minutes, and you don't need any technical knowledge. Just follow the steps in order.</p>
+  <div class="wg-hero"><div class="wg-screen"><svg class="wg-svg" viewBox="0 0 160 160" role="img" aria-label="Wee Glo showing a reading of 7.5, steady"><rect x="2" y="2" width="156" height="156" rx="18" fill="#E5E7EB" stroke="#CBD5E1" stroke-width="2"/><rect x="12" y="12" width="136" height="136" rx="10" fill="#0A0A0A"/><rect x="22" y="22" width="116" height="90" rx="2" fill="#0B1020"/><text x="26" y="35" font-family="Arial,Helvetica,sans-serif" font-size="9" font-weight="700" fill="#E5E7EB">14:42 07.11.</text><rect x="106" y="25" width="28" height="22" rx="4" fill="#E0F2FE"/><text x="120" y="35" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="9" fill="#1E3A8A">5</text><text x="120" y="44" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="6.5" font-weight="700" fill="#1E3A8A">min</text><text x="26" y="55" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="700" fill="#F8FAFC">+0.0</text><text x="28" y="88" font-family="Arial,Helvetica,sans-serif" font-size="33" font-weight="700" fill="#4ADE80">7.5</text><path d="M88 77h11m-5-6l6 6-6 6" stroke="#4ADE80" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M106 59h29M106 66h29M106 88h29M106 92h29" stroke="#CBD5E1" stroke-width=".8"/><g fill="#4ADE80"><circle cx="107" cy="77" r="1.2"/><circle cx="110" cy="76.5" r="1.2"/><circle cx="113" cy="76" r="1.2"/><circle cx="116" cy="75.5" r="1.2"/><circle cx="119" cy="75" r="1.2"/><circle cx="122" cy="75.5" r="1.2"/><circle cx="125" cy="76" r="1.2"/><circle cx="128" cy="76" r="1.2"/><circle cx="131" cy="76" r="1.2"/><circle cx="134" cy="76" r="1.2"/></g><g fill="none" stroke="#CBD5E1" stroke-width="1"><circle cx="45" cy="104" r="2.5"/><path d="M45 99v1.5M45 107.5v1.5M40 104h1.5M48.5 104h1.5"/><circle cx="80" cy="104" r="3"/><rect x="113" y="100" width="4" height="7" rx=".8"/></g><g fill="none" stroke="#334155" stroke-width="1"><circle cx="45" cy="128" r="3.5"/><circle cx="80" cy="128" r="3.5"/><circle cx="115" cy="128" r="3.5"/></g></svg></div><h1 style="margin:0">Install Wee Glo</h1></div>
+  <p class="lead">This page puts the Wee Glo software onto your M5Stack Core2. You only do this once. It's free, takes about 5 minutes, and you don't need any technical knowledge. Just follow the steps in order.</p>
 
   <div class="note warn"><b>Not a medical device.</b> The display is a convenience only. Never use it to make treatment decisions. Always check readings on your pump, sensor app or a finger-prick test, and keep your phone app's alarms switched on.</div>
 
@@ -101,7 +114,7 @@
     <div class="w"><svg class="lic tick" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Chromebook<small>in Chrome</small></span></div>
     <div class="w"><svg class="lic cross" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg><span>Phone or iPad<small>can't install, used for setup later</small></span></div>
   </div>
-  <p style="font-size:15px;color:var(--muted);margin:6px 0 0">The steps are the same on every computer. Where Windows and Mac differ, it says so.</p>
+  <p style="font-size:15px;color:var(--muted);margin:6px 0 0">We built and tested Wee Glo on a <b>Windows</b> laptop. The steps are the same on every computer. Where Windows and Mac differ, it says so.</p>
 
   <h2>You'll need</h2>
   <div class="card">
@@ -109,6 +122,7 @@
       <li>Your <b>M5Stack Core2</b> display</li>
       <li>A <b>USB-C cable that carries data</b>. The one that came in the box is best. Some phone charging cables only charge, and won't work.</li>
       <li>A <b>laptop or desktop computer</b> with Google Chrome or Microsoft Edge</li>
+      <li>For step 7: a <b>CareLink care partner account just for Wee Glo</b>. Step 1 on the <a href="https://diabeteshub.ie/wee-glo">Wee Glo page</a> shows how to make it</li>
     </ul>
   </div>
 
@@ -124,12 +138,11 @@
     <h3>Plug the display into the computer</h3>
     <p>Use the USB-C cable. Plug it straight into the computer, not into a hub or a keyboard. The display may switch on by itself, which is fine.</p>
   </div>
-    <div class="pic"><svg viewBox="0 0 520 170" role="img" aria-label="A laptop connected by a USB-C cable to the M5Stack Core2 display">
+    <div class="pic"><svg viewBox="0 0 520 170" role="img" aria-label="A laptop connected by a USB-C cable to Wee Glo">
       <rect class="d-bg" x="30" y="20" width="230" height="130" rx="10" stroke-width="2"/><rect class="d-soft" x="44" y="32" width="202" height="98" rx="4"/><rect class="d-bg" x="10" y="150" width="270" height="12" rx="6" stroke-width="2"/>
       <path d="M280 145 C330 145 330 110 380 110" stroke="#1E3A8A" stroke-width="5" fill="none" stroke-linecap="round"/>
-      <rect x="380" y="45" width="120" height="110" rx="14" fill="#111827"/><rect x="392" y="56" width="96" height="72" rx="4" fill="#0B1220"/><text x="440" y="100" text-anchor="middle" font-family="Arial" font-weight="700" font-size="26" fill="#86EFAC">6.4</text>
-      <circle cx="410" cy="141" r="5" fill="#475569"/><circle cx="440" cy="141" r="5" fill="#475569"/><circle cx="470" cy="141" r="5" fill="#475569"/>
-    </svg><p class="cap">The display connects to the computer with the USB-C cable</p></div>
+      <svg x="380" y="30" width="120" height="120" viewBox="0 0 160 160"><rect x="2" y="2" width="156" height="156" rx="18" fill="#E5E7EB" stroke="#CBD5E1" stroke-width="2"/><rect x="12" y="12" width="136" height="136" rx="10" fill="#0A0A0A"/><rect x="22" y="22" width="116" height="90" rx="2" fill="#0B1020"/><text x="26" y="35" font-family="Arial,Helvetica,sans-serif" font-size="9" font-weight="700" fill="#E5E7EB">14:42 07.11.</text><rect x="106" y="25" width="28" height="22" rx="4" fill="#E0F2FE"/><text x="120" y="35" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="9" fill="#1E3A8A">5</text><text x="120" y="44" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="6.5" font-weight="700" fill="#1E3A8A">min</text><text x="26" y="55" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="700" fill="#F8FAFC">+0.0</text><text x="28" y="88" font-family="Arial,Helvetica,sans-serif" font-size="33" font-weight="700" fill="#4ADE80">7.5</text><path d="M88 77h11m-5-6l6 6-6 6" stroke="#4ADE80" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M106 59h29M106 66h29M106 88h29M106 92h29" stroke="#CBD5E1" stroke-width=".8"/><g fill="#4ADE80"><circle cx="107" cy="77" r="1.2"/><circle cx="110" cy="76.5" r="1.2"/><circle cx="113" cy="76" r="1.2"/><circle cx="116" cy="75.5" r="1.2"/><circle cx="119" cy="75" r="1.2"/><circle cx="122" cy="75.5" r="1.2"/><circle cx="125" cy="76" r="1.2"/><circle cx="128" cy="76" r="1.2"/><circle cx="131" cy="76" r="1.2"/><circle cx="134" cy="76" r="1.2"/></g><g fill="none" stroke="#CBD5E1" stroke-width="1"><circle cx="45" cy="104" r="2.5"/><path d="M45 99v1.5M45 107.5v1.5M40 104h1.5M48.5 104h1.5"/><circle cx="80" cy="104" r="3"/><rect x="113" y="100" width="4" height="7" rx=".8"/></g><g fill="none" stroke="#334155" stroke-width="1"><circle cx="45" cy="128" r="3.5"/><circle cx="80" cy="128" r="3.5"/><circle cx="115" cy="128" r="3.5"/></g></svg>
+          </svg><p class="cap">The display connects to the computer with the USB-C cable</p></div>
   </div>
 
   <div class="step" id="install"><div class="num">3</div><div>
@@ -167,7 +180,7 @@
   <div class="step"><div class="num">5</div><div>
     <h3>Press Install, tick Erase device, then press Next and Install</h3>
     <ul>
-      <li>Press the <b>Install</b> button. It may say <b>Install DiabetesHub display</b>.</li>
+      <li>Press the <b>Install</b> button. It may say <b>Install Wee Glo</b>.</li>
       <li>It asks whether to erase the device. Tick <b>Erase device</b> and press <b>Next</b>.</li>
       <li>Press <b>Install</b> to confirm.</li>
     </ul>
@@ -176,7 +189,7 @@
       <rect class="d-bg" x="60" y="10" width="400" height="180" rx="10" stroke-width="2"/>
       <text class="d-ink" x="80" y="44" font-family="Arial" font-size="16" font-weight="700">Erase device</text>
       <text class="d-mut" x="80" y="72" font-family="Arial" font-size="13">Do you want to erase the device before installing</text>
-      <text class="d-mut" x="80" y="90" font-family="Arial" font-size="13">DiabetesHub display (M5Stack Core2)?</text>
+      <text class="d-mut" x="80" y="90" font-family="Arial" font-size="13">Wee Glo (M5Stack Core2)?</text>
       <rect x="80" y="110" width="22" height="22" rx="4" fill="#1D4ED8"/><path d="M85 121 l5 5 l8 -10" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/><text class="d-ink" x="112" y="127" font-family="Arial" font-size="14" font-weight="700">Erase device</text>
       <text x="420" y="172" text-anchor="end" font-family="Arial" font-size="15" font-weight="700" fill="#1D4ED8">NEXT</text>
     </svg><p class="cap">Erasing clears any old software, so the display starts fresh</p></div>
@@ -193,9 +206,20 @@
   </div>
 
   <div class="step"><div class="num">7</div><div>
-    <h3>Set it up on your phone</h3>
-    <p>Plug the display into a phone charger or leave it on battery. It shows its own Wi-Fi name, starting with <b>M5NS</b>, with a password and a code to scan. Join it from your phone, then add your home Wi-Fi and your CareLink care partner sign-in.</p>
-    <p>The full setup guide is on <a href="https://diabeteshub.ie/devices">diabeteshub.ie, in Devices, Wee Glo</a>.</p>
+    <h3>Set up Wee Glo on your phone</h3>
+    <p>Unplug Wee Glo from the computer. Plug it into a phone charger, or leave it on battery. Then use your phone for these steps.</p>
+    <ol class="wg-sub">
+      <li><b>Join Wee Glo's Wi-Fi.</b> The screen shows a Wi-Fi name starting with <b>M5NS</b>, a password and a code. Point your phone's camera at the code and tap the Wi-Fi name that pops up.</li>
+      <li><b>Add your home Wi-Fi.</b> A settings page opens on your phone. If it doesn't, open your browser and go to <b>192.168.0.1</b>. Add your home Wi-Fi name and password, choose <b>Medtronic CareLink</b> under <b>Data source</b>, set the country to <b>IE</b>, and tap <b>Save</b>. Wee Glo restarts.</li>
+      <li><b>Find the code page on Wee Glo.</b> Once it's on your home Wi-Fi, tap the <b>right-hand button</b> under the screen briefly, once at a time, until you see a QR code. Don't hold it down, as that puts Wee Glo to sleep. Scan it with your phone's camera to open the settings page again.</li>
+      <li><b>Sign in to CareLink.</b> Under <b>Data source</b>, tap <b>sign in</b> next to CareLink login, and sign in with the <b>care partner account you made just for Wee Glo</b>. Don't use the account from your CareLink Connect app.</li>
+      <li><b>Copy the address back.</b> After signing in you'll see an error or a blank page. Copy the full address from the top of the screen, and paste it into the box on the settings page within a few minutes.</li>
+      <li><b>Set your alarm levels</b> in <b>Alarms &amp; sounds</b>, using the levels your diabetes team gave you. With the battery base, open <b>Hardware add-ons</b>, set <b>LED strip mode</b> to <b>show warnings and alarms</b>, and tap <b>Run the light test</b>.</li>
+    </ol>
+    <p class="wg-norm"><b>An error or a blank page after signing in to CareLink is normal.</b> It's how CareLink hands over the sign-in. If your phone hides the address, do that step on a computer.</p>
+    <p>No care partner account yet? Step 1 on the Wee Glo page shows how to make one.</p>
+    <p>Questions? Email <a href="mailto:weeglo@diabeteshub.ie">weeglo@diabeteshub.ie</a>.</p>
+    <a class="wg-back" href="https://diabeteshub.ie/wee-glo">Back to the Wee Glo page on diabeteshub.ie</a>
   </div></div>
 
 
@@ -221,7 +245,7 @@
   <details><summary>The display screen stays black after installing</summary><div>
     <p>Press the small power button on the left side of the display for 2 seconds. If it's still black, charge it for 15 minutes and try again.</p>
   </div></details>
-  <p style="font-size:15px;color:var(--muted)">Still stuck? Email <a href="mailto:diabeteshub.ie@gmail.com">diabeteshub.ie@gmail.com</a> with a photo of your screen.</p>
+  <p style="font-size:15px;color:var(--muted)">Still stuck? Email <a href="mailto:weeglo@diabeteshub.ie">weeglo@diabeteshub.ie</a> with a photo of your screen.</p>
 </main>
 
 <footer>
