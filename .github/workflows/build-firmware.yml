@@ -106,7 +106,7 @@ jobs:
           cp firmware/M5NS-CareLink-Core2-full.bin firmware/VERSION.txt site/
           cat > site/manifest.json <<EOF
           {
-            "name": "DiabetesHub display (M5Stack Core2)",
+            "name": "Wee Glo (M5Stack Core2)",
             "version": "${GITHUB_SHA::7}",
             "new_install_prompt_erase": true,
             "new_install_improv_wait_time": 0,
