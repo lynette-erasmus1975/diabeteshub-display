@@ -22,6 +22,8 @@ void handleGetEditConfigItem();
 void handleSaveConfig();
 void handleClearConfigFlash();
 void handleCareLink();
+void handleWeeGloHome();
+void handleWeeGloCard();
 void handleNotFound();
 
 #endif

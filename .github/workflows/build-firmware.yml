@@ -72,6 +72,10 @@ jobs:
             0x8000 build/M5_NightscoutMon.ino.partitions.bin \
             0x10000 build/M5_NightscoutMon.ino.bin
           echo "Built from commit ${GITHUB_SHA::7} on $(date -u +%Y-%m-%d)" > firmware/VERSION.txt
+          # Wee Glo's own update check (middle button on the code page) reads these
+          grep -o 'M5NSversion("[0-9]*")' M5_NightscoutMon/M5_NightscoutMon.ino | grep -o '[0-9]\{10\}' > firmware/update.inf
+          test -s firmware/update.inf
+          cp M5_NightscoutMon/whatsnew.txt firmware/whatsnew.txt
           ls -la firmware
 
       - uses: actions/upload-artifact@v4
@@ -104,12 +108,15 @@ jobs:
           mkdir -p site
           cp install/index.html site/
           cp firmware/M5NS-CareLink-Core2-full.bin firmware/VERSION.txt site/
+          # Wee Glo updates over Wi-Fi come only from here (see updateURL in M5NSWebConfig.cpp)
+          mkdir -p site/ota/ESP32_16MB
+          cp firmware/M5_NightscoutMon.ino.bin firmware/update.inf firmware/whatsnew.txt site/ota/ESP32_16MB/
           cat > site/manifest.json <<EOF
           {
             "name": "Wee Glo (M5Stack Core2)",
             "version": "${GITHUB_SHA::7}",
             "new_install_prompt_erase": true,
-            "new_install_improv_wait_time": 0,
+            "new_install_improv_wait_time": 15,
             "builds": [
               { "chipFamily": "ESP32", "parts": [ { "path": "M5NS-CareLink-Core2-full.bin", "offset": 0 } ] }
             ]

@@ -41,8 +41,11 @@ static const char* updateVariantPath() {
   return (ESP.getFlashChipSize() >= 16 * 1024 * 1024) ? "ESP32_16MB" : "Basic_4MB";
 #endif
 }
+// Wee Glo: updates come only from the DiabetesHub display's own published files, never from
+// the original project, whose builds have no CareLink support. Only the Core2 (ESP32_16MB)
+// build is published; every other variant gets a 404, so it is simply never offered an update.
 static String updateURL(const char* file) {
-  return String("https://raw.githubusercontent.com/psonnera/M5_NightscoutMon/master/Binaries/")
+  return String("https://lynette-erasmus1975.github.io/diabeteshub-display/ota/")
          + updateVariantPath() + "/" + file;
 }
 
@@ -57,38 +60,100 @@ static String updateURL(const char* file) {
 // restart automatically after writing M5NS.INI. Lives only in RAM - a real restart clears it,
 // and that's the only way it needs to be cleared.
 static bool restartPending = false;
+// Where the DiabetesHub Wee Glo guide lives. The test build points at the test site; the release build
+// MUST be built with "https://diabeteshub.ie" (the guide is only on the live site from launch day).
+#ifndef WG_SITE
+#define WG_SITE "https://dev.diabeteshub.pages.dev"
+#endif
+extern void lcdSetBrightness(uint8_t brightness);
+static const char* WG_BACK_EARLY = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 6l-6 6 6 6\"/></svg>";
 
 // Defined further down (shared by handleSaveConfig() and handleGetEditConfigItem()).
 static void persistConfigToDisk();
 
 static void pageHeadOpen(String& m, const char* extraMeta) {
-  m += "<!DOCTYPE HTML>\r\n<html>\r\n<head>\r\n";
+  m += "<!DOCTYPE HTML>\r\n<html lang=\"en-IE\">\r\n<head>\r\n";
   m += "<meta charset=\"utf-8\">\r\n";
   m += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\r\n";
   if (extraMeta && extraMeta[0]) m += extraMeta;
+  // Wee Glo look, matching diabeteshub.ie, light and dark
+  m += "<script>(function(){var t='light';try{var s=localStorage.getItem('dhub_theme');if(s==='dark'||s==='system')t=s;}catch(e){}document.documentElement.setAttribute('data-theme',t);})();</script>\r\n";
   m += "<style>\r\n";
-  m += "body{font-family:-apple-system,\"Segoe UI\",Roboto,Arial,sans-serif;font-size:15px;margin:0;padding:10px;max-width:480px}\r\n";
-  m += "h1{font-size:19px;margin:4px 0 12px}\r\n";
-  m += "details{border:1px solid #ccc;border-radius:6px;margin-bottom:6px;background:#fff}\r\n";
-  m += "summary{font-weight:600;padding:10px;cursor:pointer}\r\n";
-  m += ".row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px;padding:7px 10px;border-top:1px solid #eee}\r\n";
-  m += ".row>span:first-child{color:#555;margin-right:8px}\r\n";
-  m += "select,input[type=text],input[type=password]{font-size:15px;padding:5px}\r\n";
-  m += "a{color:#06c;text-decoration:none}\r\n";
-  m += ".y{color:#BB9900}.r{color:#c00}.t{color:teal}\r\n";
-  m += ".btn{display:inline-block;background:#4CAF50;color:#fff !important;padding:10px 18px;border-radius:4px;font-weight:600;margin:6px 0;border:none;font-size:15px}\r\n";
-  m += ".btn2{display:inline-block;background:#999;color:#fff !important;padding:10px 18px;border-radius:4px;font-weight:600;margin:6px 0 6px 6px;border:none;font-size:15px}\r\n";
-  m += ".sw{display:inline-block;min-width:40px;text-align:center;padding:5px 10px;border-radius:12px;background:#bbb;color:#fff !important;font-size:12px;font-weight:600}\r\n";
-  m += ".sw.on{background:#4CAF50}\r\n";
-  m += ".seg{display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #ccc}\r\n";
-  m += ".seg a{padding:5px 10px;background:#f2f2f2;color:#333 !important;font-size:13px}\r\n";
-  m += ".seg a.act{background:#4CAF50;color:#fff !important;font-weight:600}\r\n";
-  m += ".warn{color:#c00}\r\n";
-  m += ".note{color:#777;font-size:13px;margin-top:2px;flex-basis:100%}\r\n";
+  m += ":root{--navy:#1E3A8A;--blue:#1D4ED8;--bpp:#DBEAFE;--green:#15803D;--gpp:#F0FDF4;--bg:#F7F8FA;--card:#fff;--soft:#F9FAFB;--text:#111827;--muted:#4B5563;--border:#E5E7EB;--red:#BE123C}\r\n";
+  // Light, dark or match my device, the same choice as on diabeteshub.ie. Light is the standard look.
+  m += ":root[data-theme=dark]{--blue:#93C5FD;--bpp:#1E3A5F;--gpp:#10291D;--bg:#0B1220;--card:#151E2E;--soft:#1B2535;--text:#E5E7EB;--muted:#A3AEBF;--border:#2A3648;--red:#FDA4AF;color-scheme:dark}@media(prefers-color-scheme:dark){:root[data-theme=system]{--blue:#93C5FD;--bpp:#1E3A5F;--gpp:#10291D;--bg:#0B1220;--card:#151E2E;--soft:#1B2535;--text:#E5E7EB;--muted:#A3AEBF;--border:#2A3648;--red:#FDA4AF;color-scheme:dark}}\r\n";
+  m += "*{box-sizing:border-box}body{font-family:Inter,system-ui,-apple-system,\"Segoe UI\",Roboto,Arial,sans-serif;font-size:16px;line-height:1.5;margin:0;background:var(--bg);color:var(--text)}\r\n";
+  // the DiabetesHub header, as on diabeteshub.ie: logo, name, and the light or dark button
+  m += "header{background:#1E3A8A;color:#fff}.hi{max-width:1240px;margin:0 auto;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px}"
+       ".logo-w{display:flex;align-items:center;gap:11px;text-decoration:none}.logo-mark{width:46px;height:46px;flex-shrink:0}.logo-txt{display:flex;flex-direction:column;line-height:1.05}"
+       ".logo-name{font-size:20px;font-weight:700;color:#fff;letter-spacing:-.4px}.logo-name em{font-style:normal}.logo-name .acc{color:#86EFAC}"
+       ".logo-tag{font-size:12px;color:rgba(255,255,255,.45);letter-spacing:.22em;text-transform:uppercase;margin-top:3px}"
+       "#themeBtn{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;width:40px;height:40px;border-radius:50%;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0}#themeBtn:hover{background:rgba(255,255,255,.26)}"
+       ".dhi{display:inline-flex;align-items:center;justify-content:center;flex:none}.dhi svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}\r\n";
+  // the light or dark chooser, as on diabeteshub.ie
+  m += "#themeBackdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px}"
+       ".stat-modal{background:var(--card);border-radius:20px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(29,78,216,.2);position:relative;overflow:hidden;animation:smIn .28s cubic-bezier(.34,1.3,.64,1)}"
+       "@keyframes smIn{from{opacity:0;transform:scale(.88) translateY(12px)}to{opacity:1;transform:none}}"
+       ".sm-header{background:#1E3A8A;padding:22px 24px 18px;color:#fff;position:relative}.sm-eyebrow{font-size:12px;opacity:.7;text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px}"
+       ".sm-title{font-size:22px;font-weight:700;line-height:1.3;padding-right:30px}.sm-close{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.18);border:none;width:30px;height:30px;border-radius:50%;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center}"
+       ".sm-body{padding:14px 16px 18px}.theme-opt{width:100%;display:flex;align-items:center;gap:13px;text-align:left;background:var(--soft);border:2px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:9px;cursor:pointer;font-family:inherit;color:var(--text);min-height:60px}"
+       ".theme-opt:hover,.theme-opt.sel{border-color:var(--blue)}.theme-opt.sel{background:var(--bpp)}.theme-opt .dhi svg{width:26px;height:26px}"
+       ".to-tx{display:flex;flex-direction:column;gap:2px;font-size:16px;color:var(--muted)}.to-tx strong{color:var(--text)}"
+       ".to-tx em{font-style:normal;font-size:12px;font-weight:700;background:var(--gpp);color:var(--green);border-radius:20px;padding:1px 8px;margin-left:4px}\r\n";
+  m += "main{max-width:560px;margin:0 auto;padding:14px 16px 32px}\r\n";
+  m += "h1{font-size:23px;margin:4px 0 6px}h2{font-size:20px;margin:0 0 8px}.lead{color:var(--muted);margin:0 0 14px}\r\n";
+  m += ".list{display:flex;flex-direction:column;gap:10px}\r\n";
+  m += ".cl{display:flex;align-items:center;gap:12px;background:var(--card);border:2px solid var(--border);border-radius:14px;padding:12px 14px;color:var(--text);min-height:64px}\r\n";
+  m += ".cl.dn{border-color:var(--green);background:var(--gpp)}.ci{width:34px;height:34px;border-radius:50%;background:var(--navy);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}.cl.dn .ci{background:var(--green)}\r\n";
+  m += ".tx{flex:1;min-width:0}.tx b{display:block}.tx span{font-size:14px;color:var(--muted)}.ar{color:var(--blue)}\r\n";
+  m += ".card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}\r\n";
+  m += ".fld{display:block;font-weight:700;font-size:15px;margin:12px 0 4px}.inp{width:100%;min-height:46px;border:2px solid var(--border);border-radius:10px;padding:0 12px;font:inherit;background:var(--card);color:var(--text)}\r\n";
+  m += ".row2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;align-items:end}\r\n";
+  m += ".nav{display:flex;gap:10px;margin-top:16px}.nav>*{flex:1}.nav>.o{flex:.7}\r\n";
+  m += ".btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:50px;padding:0 16px;border-radius:12px;background:var(--navy);color:#fff !important;font-weight:700;font-size:16px;border:2px solid var(--navy);text-decoration:none;cursor:pointer;font-family:inherit}\r\n";
+  m += ".btn.o{background:transparent;color:var(--blue) !important;border-color:var(--blue)}.btn.g{background:var(--green);border-color:var(--green)}\r\n";
+  m += ".btn2{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border-radius:12px;background:transparent;color:var(--blue) !important;border:2px solid var(--blue);font-weight:700;font-size:15px;margin:6px 0 6px 6px;font-family:inherit}\r\n";
+  m += ".bk{display:inline-flex;align-items:center;gap:4px;font-weight:700;min-height:44px}.cnt{font-size:14px;font-weight:700;color:var(--muted);margin:0 0 10px}\r\n";
+  m += ".ok{background:var(--gpp);border:1px solid var(--green);border-radius:10px;padding:10px 12px}.bad{border:1px solid var(--red);color:var(--red);border-radius:10px;padding:10px 12px}\r\n";
+  m += ".small{font-size:14px;color:var(--muted)}a{color:var(--blue);text-decoration:none}\r\n";
+  // the full settings list (/all) keeps its own compact rows
+  m += "details{border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--card)}summary{font-weight:700;padding:12px;cursor:pointer}\r\n";
+  m += ".row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px;padding:8px 12px;border-top:1px solid var(--border)}.row>span:first-child{color:var(--muted);margin-right:8px}\r\n";
+  m += "select,input[type=text],input[type=password],textarea{font-size:16px;padding:6px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px}\r\n";
+  m += ".y{color:#B45309}.r{color:var(--red)}.t{color:var(--green)}.warn{color:var(--red)}.note{color:var(--muted);font-size:13px;margin-top:2px;flex-basis:100%}\r\n";
+  m += ".sw{display:inline-block;min-width:44px;text-align:center;padding:6px 10px;border-radius:12px;background:#94A3B8;color:#fff !important;font-size:13px;font-weight:700}.sw.on{background:var(--green)}\r\n";
+  m += ".seg{display:inline-flex;border-radius:8px;overflow:hidden;border:1px solid var(--border)}.seg a{padding:6px 10px;background:var(--soft);color:var(--text) !important;font-size:13px}.seg a.act{background:var(--green);color:#fff !important;font-weight:700}\r\n";
+  // Wee Glo: a "please wait" message for steps that take a few seconds (finding Wi-Fi networks,
+  // saving, signing in, checking for updates), so nobody thinks the page is stuck.
+  m += "#wgw{position:fixed;inset:0;background:rgba(11,18,32,.72);display:none;align-items:center;justify-content:center;z-index:9;padding:24px}"
+       "#wgw div{background:var(--card);color:var(--text);border-radius:16px;padding:22px 20px;max-width:340px;text-align:center;font-weight:700}"
+       "#wgw i{display:block;width:36px;height:36px;margin:0 auto 12px;border:4px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:wgs 1s linear infinite}"
+       "@keyframes wgs{to{transform:rotate(360deg)}}\r\n";
   m += "</style>\r\n";
-  m += "<title>M5 Nightscout - "; m += cfg.userName; m += "</title>\r\n";
-  m += "</head>\r\n<body>\r\n";
-  m += "<h1>M5Stack Nightscout monitor for "; m += cfg.userName; m += "!</h1>\r\n";
+  m += "<script>function wgWait(t){var w=document.getElementById('wgw');if(!w){w=document.createElement('div');w.id='wgw';w.setAttribute('role','status');w.innerHTML='<div><i></i><span></span></div>';document.body.appendChild(w);}w.querySelector('span').textContent=t;w.style.display='flex';}"
+       "document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[data-wait]');if(a)wgWait(a.getAttribute('data-wait'));});"
+       "document.addEventListener('submit',function(e){var f=e.target;if(f.getAttribute&&f.getAttribute('data-wait'))wgWait(f.getAttribute('data-wait'));});"
+       "window.addEventListener('pageshow',function(){var w=document.getElementById('wgw');if(w)w.style.display='none';});</script>\r\n";
+  m += "<title>Wee Glo settings</title>\r\n";
+  m += "</head>\r\n<body>\r\n<header><div class=\"hi\"><a class=\"logo-w\" href=\"/\">"
+       "<svg class=\"logo-mark\" viewBox=\"0 0 100 100\" fill=\"none\" aria-label=\"DiabetesHub Ireland logo\"><circle cx=\"50\" cy=\"50\" r=\"47\" fill=\"rgba(255,255,255,0.08)\" stroke=\"rgba(255,255,255,0.25)\" stroke-width=\"1.2\"/><path d=\"M50 10C50 10 44 16.3 44 19.52C44 22.6 47 24 50 24C53 24 56 22.6 56 19.52C56 16.3 50 10 50 10Z\" fill=\"#86EFAC\"/><path d=\"M50 84C20 64 14 46 22 36C30 27 43 30 50 40C57 30 70 27 78 36C86 46 80 64 50 84Z\" fill=\"rgba(255,255,255,0.14)\" stroke=\"#fff\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/><path d=\"M24 56L38 56L43 46L50 68L56 50L60 56L76 56\" stroke=\"#86EFAC\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>"
+       "<div class=\"logo-txt\"><div class=\"logo-name\"><em>Diabetes</em><span class=\"acc\">Hub</span></div><div class=\"logo-tag\">Ireland</div></div></a>"
+       "<button type=\"button\" id=\"themeBtn\" aria-haspopup=\"dialog\" aria-label=\"Choose light or dark appearance\" title=\"Appearance\"><span class=\"dhi\"></span></button></div></header>\r\n";
+  // the light or dark button and chooser, the same as on diabeteshub.ie (the choice is kept in this browser)
+  m += "<script>(function(){var SUN=\"<svg viewBox=\'0 0 24 24\'><circle cx=\'12\' cy=\'12\' r=\'4\'/><path d=\'M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\'/></svg>\",MOON=\"<svg viewBox=\'0 0 24 24\'><path d=\'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z\'/></svg>\",PH=\"<svg viewBox=\'0 0 24 24\'><rect x=\'7\' y=\'2\' width=\'10\' height=\'20\' rx=\'2\'/><path d=\'M11 18h2\'/></svg>\",X=\"<svg viewBox=\'0 0 24 24\'><path d=\'M6 6l12 12M18 6L6 18\'/></svg>\";"
+       "function cur(){return document.documentElement.getAttribute('data-theme')||'light';}"
+       "function dark(){var t=cur();return t==='dark'||(t==='system'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);}"
+       "var b=document.getElementById('themeBtn');function sync(){b.firstChild.innerHTML=dark()?MOON:SUN;}sync();"
+       "if(window.matchMedia)try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',sync);}catch(e){}"
+       "function close(){var d=document.getElementById('themeBackdrop');if(d)d.remove();}"
+       "function set(t){document.documentElement.setAttribute('data-theme',t);try{localStorage.setItem('dhub_theme',t);}catch(e){}sync();close();}"
+       "b.onclick=function(){close();var c=cur(),o=[['light',SUN,'Light <em>Standard</em>','Bright and clean. This is the standard look.'],['dark',MOON,'Dark','Easier on the eyes at night or in low light.'],['system',PH,'Match my device','Follow my phone or computer setting automatically.']];"
+       "var d=document.createElement('div');d.id='themeBackdrop';d.setAttribute('role','dialog');d.setAttribute('aria-modal','true');d.setAttribute('aria-label','Choose appearance');"
+       "d.innerHTML='<div class=\"stat-modal\"><div class=\"sm-header\"><div class=\"sm-eyebrow\">Appearance</div><div class=\"sm-title\">How would you like Wee Glo settings to look?</div><button type=\"button\" class=\"sm-close\" aria-label=\"Close\"><span class=\"dhi\">'+X+'</span></button></div><div class=\"sm-body\">'"
+       "+o.map(function(x){return '<button type=\"button\" class=\"theme-opt'+(x[0]===c?' sel':'')+'\" data-t=\"'+x[0]+'\"><span class=\"dhi\">'+x[1]+'</span><span class=\"to-tx\"><strong>'+x[2]+'</strong><span>'+x[3]+'</span></span></button>';}).join('')+'</div></div>';"
+       "d.addEventListener('click',function(e){var t=e.target.closest('[data-t]');if(t)return set(t.getAttribute('data-t'));if(e.target===d||e.target.closest('.sm-close'))close();});"
+       "document.body.appendChild(d);var s=d.querySelector('.sel');if(s)s.focus();};"
+       "document.addEventListener('keydown',function(e){if(e.key==='Escape')close();});})();</script>\r\n<main>\r\n";
 }
 
 static void detailsOpen(String& m, const char* id, const char* label, const String& sec) {
@@ -189,8 +254,9 @@ void handleRoot() {
   String message;
   message.reserve(11264);
   pageHeadOpen(message, NULL);
+  message += "<a class=\"bk\" href=\"/\">&lsaquo; Wee Glo settings</a><h1>Advanced settings</h1><p class=\"lead\">Every setting, for confident users. Most families only need the main Wee Glo settings page.</p>\r\n";
 
-  message += "<a class=\"btn\" href=\"/savecfg\">Save configuration to M5NS.INI</a>\r\n";
+  message += "<a class=\"btn\" href=\"/savecfg\">Save all settings</a>\r\n";
   if (restartPending) {
     message += "<p class=\"warn\">Changes pending that need a restart - the device will restart automatically when you save.</p>\r\n";
   }
@@ -360,7 +426,7 @@ void handleRoot() {
   rowEdit(message, "Alarm sound above", String(cfg.snd_alarm_high*mult, decpl) + " " + sgvUnits, "sndAlarms", "al", "t");
   rowEdit(message, "No-readings warning", String(cfg.snd_no_readings) + " min", "sndAlarms", "al", "t");
   rowToggle(message, "Alarm on LOOP Error", cfg.snd_loop_error, "snd_loop_error", "al");
-  rowToggle(message, "Test warning at startup", cfg.snd_warning_at_startup, "snd_warning_at_startup", "al");
+  rowToggle(message, "Start-up chime", cfg.snd_warning_at_startup, "snd_warning_at_startup", "al");
   rowToggle(message, "Test alarm at startup", cfg.snd_alarm_at_startup, "snd_alarm_at_startup", "al");
   rowEdit(message, "Warning sound volume", String(cfg.warning_volume) + "%", "sndAlarms", "al", "t");
   rowEdit(message, "Alarm sound volume", String(cfg.alarm_volume) + "%", "sndAlarms", "al", "t");
@@ -402,6 +468,7 @@ void handleRoot() {
   rowEdit(message, "LED strip pin", String(cfg.LED_strip_pin), "led_strip", "hw");
   rowEdit(message, "LED strip count", String(cfg.LED_strip_count), "led_strip", "hw");
   rowEdit(message, "LED strip brightness", String(cfg.LED_strip_brightness) + "%", "led_strip", "hw");
+  message += "<div class=\"row\"><span>Test the side lights</span><span><a href=\"/lighttest\">Run the light test</a></span></div>\r\n";
   rowToggle(message, "Vibration motor unit", cfg.vibration_mode, "vibration_mode", "hw");
   rowEdit(message, "Vibration motor pin", String(cfg.vibration_pin), "vibration_motor", "hw");
   rowEdit(message, "Vibration motor strength", String(cfg.vibration_strength), "vibration_motor", "hw");
@@ -433,6 +500,7 @@ void handleFwCheck() {
   String webVer;
   String whatsNew;
   bool fetchOk = false;
+  int failCode = 0;   // 0 not on Wi-Fi, <0 couldn't connect, 404 nothing published yet, other HTTP error
 
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
@@ -445,9 +513,11 @@ void handleFwCheck() {
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
       webVer = http.getString();
+      webVer.trim();
       fetchOk = true;
     } else {
-      Serial.println("Error getting update.inf");
+      failCode = httpCode;
+      Serial.printf("Error getting update.inf: %d\r\n", httpCode);
     }
     http.end();
 
@@ -457,34 +527,43 @@ void handleFwCheck() {
       http.setConnectTimeout(5000);
       httpCode = http.GET();
       if (httpCode == HTTP_CODE_OK) {
-        whatsNew = http.getString();
-        whatsNew.replace("\r\n", "<br />\r\n");
+        whatsNew = htmlEscape(http.getString());
+        whatsNew.replace("\r\n", "<br>");
+        whatsNew.replace("\n", "<br>");
       }
       http.end();
     }
   }
 
   String message;
-  message.reserve(1536);
+  message.reserve(2048);
   pageHeadOpen(message, NULL);
-  message += "<p><b>Application firmware</b><br />\r\n";
-  message += "Current version: "; message += M5NSversion; message += "<br />\r\n";
-  if (!fetchOk) {
-    message += "Could not reach the update server. Check the WiFi connection and try again.<br />\r\n";
+  message += "<a class=\"bk\" href=\"/\">"; message += WG_BACK_EARLY; message += " All settings</a>\r\n";
+  message += "<div class=\"card\"><h2>Check for updates</h2>\r\n";
+  message += "<p>This Wee Glo: version <b>"; message += M5NSversion; message += "</b></p>\r\n";
+  bool tryAgain = false;
+  if (fetchOk && webVer > M5NSversion) {
+    message += "<p class=\"ok\"><b>A new version is ready:</b> "; message += htmlEscape(webVer); message += "</p>\r\n";
+    if (whatsNew.length()) { message += "<p class=\"small\"><b>What's new</b><br>"; message += whatsNew; message += "</p>\r\n"; }
+    message += "<p class=\"small\">It takes about 2 minutes. Keep Wee Glo plugged in. It restarts by itself, and your settings stay as they are.</p>\r\n";
+    message += "<div class=\"nav\"><a class=\"btn o\" href=\"/\">"; message += WG_BACK_EARLY; message += "Not now</a>"
+               "<a class=\"btn g\" href=\"/update\" data-wait=\"Updating Wee Glo. This takes about 2 minutes. Keep it plugged in.\">Update Wee Glo</a></div>\r\n";
+  } else if (fetchOk) {
+    message += "<p class=\"ok\"><b>Wee Glo is up to date.</b> There's nothing to do.</p>\r\n";
+  } else if (failCode == 404) {
+    message += "<p><b>No updates have been published yet.</b> There's nothing to do. Check again another time.</p>\r\n";
+  } else if (failCode == 0) {
+    message += "<p class=\"bad\">Wee Glo isn't on your Wi-Fi right now, so it can't check. Set up Home Wi-Fi first.</p>\r\n";
   } else {
-    message += "Latest version: "; message += webVer;
-    if (webVer > M5NSversion) {
-      message += " <a href=\"/update\"><b>click to update</b></a>";
-    }
-    message += "<br />\r\n";
-    if (whatsNew.length() > 0) {
-      message += "<b>Last update information:</b><br />\r\n";
-      message += whatsNew;
-      message += "\r\n";
-    }
+    message += "<p class=\"bad\">Wee Glo couldn't reach the update server. This is usually brief. Try again in a few minutes.</p>\r\n";
+    tryAgain = true;
   }
-  message += "</p>\r\n<p><a href=\"/\">Back to configuration</a></p>\r\n";
-  message += "</body>\r\n</html>\r\n";
+  if (!(fetchOk && webVer > M5NSversion)) {
+    message += "<div class=\"nav\"><a class=\"btn o\" href=\"/\">"; message += WG_BACK_EARLY; message += "All settings</a>";
+    if (tryAgain) message += "<a class=\"btn\" href=\"/fwcheck\" data-wait=\"Checking for updates. This takes a few seconds.\">Try again</a>";
+    message += "</div>\r\n";
+  }
+  message += "</div></main></body>\r\n</html>\r\n";
   w3srv.send(200, "text/html; charset=utf-8", message);
 }
 
@@ -713,7 +792,7 @@ void handleSwitchConfig() {
                  "setup mode, which always serves this page.</p>\r\n";
       message += "<p><a class=\"btn2\" href=\"switch?param=disable_web_server&v=0&ok=1&s=";
       message += sec; message += "\">Disable anyway</a>\r\n";
-      message += "<a class=\"btn\" href=\"/?s="; message += sec; message += "\">Keep it enabled</a></p>\r\n";
+      message += "<a class=\"btn\" href=\"/all?s="; message += sec; message += "\">Keep it enabled</a></p>\r\n";
       message += "</body>\r\n</html>\r\n";
       w3srv.send(200, "text/html; charset=utf-8", message);
       return;
@@ -898,7 +977,7 @@ void handleSwitchConfig() {
   // Instant redirect instead of the old 1s meta-refresh page - dropdown/toggle changes
   // feel immediate and each switch no longer costs ~0.5KB of throwaway HTML. Carries the
   // section id back so only the section just changed stays expanded.
-  w3srv.sendHeader("Location", "/?s=" + sec);
+  w3srv.sendHeader("Location", "/all?s=" + sec);
   w3srv.send(303, "text/plain", "");
 
   if (!cfg.is_task_bootstrapping) {
@@ -1011,7 +1090,7 @@ void handleEditConfigItem() {
   }
   message += "<div style=\"margin-top:10px\">\r\n";
   message += "<input type=\"submit\" class=\"btn\" name=\"Submit\" value=\"Apply\">\r\n";
-  message += "<input type=\"button\" class=\"btn2\" name=\"Cancel\" value=\"Cancel\" onClick=\"window.location.href='/?s=" + sec + "';\" />\r\n";
+  message += "<input type=\"button\" class=\"btn2\" name=\"Cancel\" value=\"Cancel\" onClick=\"window.location.href='/all?s=" + sec + "';\" />\r\n";
   message += "</div>\r\n";
   message += "</form>\r\n";
   message += "</body>\r\n";
@@ -1038,7 +1117,7 @@ void handleGetEditConfigItem() {
 
   String message;
   message.reserve(768);
-  String meta = "<meta http-equiv=\"refresh\" content=\"1;url=/?s=" + sec + "\" />\r\n";
+  String meta = "<meta http-equiv=\"refresh\" content=\"1;url=/all?s=" + sec + "\" />\r\n";
   pageHeadOpen(message, meta.c_str());
   message += "<p>Updating edited items in M5Stack Nightscout monitor configuration (NOT saving to M5NS.INI file).</p>\r\n";
   for (uint8_t i = 0; i < w3srv.args(); i++) {
@@ -1166,7 +1245,7 @@ void handleGetEditConfigItem() {
     }
     if(String(w3srv.argName(i)).equals("LED_strip_pin")) {
       int oldpin = cfg.LED_strip_pin;
-      cfg.LED_strip_pin = String(w3srv.arg(i)).toInt();
+      cfg.LED_strip_pin = halSafeLedPin(String(w3srv.arg(i)).toInt());
       if(oldpin != cfg.LED_strip_pin) {
         pixels.clear();
         pixels.show();
@@ -1438,50 +1517,64 @@ void handleCareLink() {
   String message;
   message.reserve(4096);
   pageHeadOpen(message, NULL);
-  message += "<h2 style=\"font-size:17px\">Medtronic CareLink</h2>\r\n";
-  if (result.length()) {
-    message += "<p class=\""; message += resultOk ? "t" : "warn"; message += "\"><b>";
-    message += htmlEscape(result); message += "</b></p>\r\n";
+  message += "<a class=\"bk\" href=\"/\">"; message += WG_BACK_EARLY; message += " All settings</a><p class=\"cnt\">2 of 5</p>\r\n";
+  bool justSignedIn = resultOk && w3srv.method() == HTTP_POST && !w3srv.hasArg("action");
+  bool signedIn = careLinkHasLogin() && !careLinkNeedsSignIn();
+  if (justSignedIn || signedIn) {
+    // Done: say so clearly and lead on to the next step, with signing in again tucked away.
+    message += "<div class=\"card\"><h2>CareLink sign-in</h2>\r\n";
+    message += "<p class=\"ok\"><b>";
+    message += justSignedIn ? "Signed in to CareLink." : "Wee Glo is signed in to CareLink.";
+    message += "</b> Readings show on Wee Glo within about 5 minutes. You can close the CareLink tab.</p>\r\n";
+    message += "<div class=\"nav\"><a class=\"btn o\" href=\"/\">"; message += WG_BACK_EARLY; message += "All settings</a>"
+               "<a class=\"btn g\" href=\"/card?c=alarms\">Next: alarm levels</a></div></div>\r\n";  // "Next", so it isn't mixed up with the guide's own Done, next step
+    message += "<details style=\"margin-top:14px\"><summary>Sign in again</summary><div style=\"padding:0 12px 12px\">";
+  } else {
+    message += "<div class=\"card\"><h2>CareLink sign-in</h2>\r\n";
+    if (result.length()) {
+      message += "<p class=\"bad\">"; message += htmlEscape(result);
+      message += " Sign in once more on the CareLink tab, and copy the new red line straight away.</p>\r\n";
+    }
   }
-  message += "<p>Status: <b>"; message += htmlEscape(careLinkStatus()); message += "</b></p>\r\n";
-  if (cfg.data_source != 3)
-    message += "<p class=\"warn\">CareLink is not the selected data source yet. Choose it under Data source on the main page and save.</p>\r\n";
-
-  message += "<p>Use a <b>care partner</b> account that is only used by this display. If the same account is signed in "
-             "to the CareLink Connect app or another tool, CareLink cancels this device's login.</p>\r\n";
-
+  if (cfg.is_task_bootstrapping)
+    message += "<p class=\"bad\">Set up your home Wi-Fi first. CareLink sign-in needs the internet.</p>\r\n";
+  message += "<p><b>Do this on a computer</b> with Chrome or Edge. Phones hide the sign-in code Wee Glo needs. "
+             "Use the care partner account you made just for Wee Glo, not the one in your CareLink Connect app.</p>\r\n";
+  // Wee Glo: the video lives in the DiabetesHub guide (no room for video on Wee Glo itself)
+  message += "<p><a href=\"" WG_SITE "/wee-glo/setup?step=3\" target=\"_blank\" rel=\"noopener\">"
+             "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\" style=\"vertical-align:-3px;margin-right:6px\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M10 8.5l5.5 3.5-5.5 3.5z\"/></svg>"
+             "Watch the video</a> of these steps. It opens the DiabetesHub guide in a new tab.</p>\r\n";
   String err;
   String loginUrl = careLinkLoginUrl(&cfg, err);
-  message += "<p><b>1.</b> ";
+  message += "<ol style=\"padding-left:22px;margin:8px 0\">\r\n";
+  message += "<li>Keep this page open. Click <b>Sign in to CareLink</b> below. CareLink opens in a new tab.</li>\r\n";
+  message += "<li>On the CareLink tab, press <b>Ctrl+Shift+J</b> (on a Mac, Cmd+Option+J). A panel called <b>Console</b> opens.</li>\r\n";
+  message += "<li>Type the email and password. Check the password with the eye icon first: too many wrong tries locks the account.</li>\r\n";
+  message += "<li>Tick <b>I'm not a robot</b>, then click <b>Sign in</b> straight away. The page seems to do nothing. That's normal.</li>\r\n";
+  message += "<li>In the Console, a red line appears starting <b>Failed to launch</b>. Click it three times to select it, then press <b>Ctrl+C</b> (on a Mac, Cmd+C).</li>\r\n";
+  message += "<li>Come back to this tab, paste it in the box below (<b>Ctrl+V</b>, or Cmd+V on a Mac), and click <b>Finish sign-in</b> within a minute.</li>\r\n";
+  message += "</ol>\r\n";
   if (loginUrl.length()) {
-    message += "<a class=\"btn\" href=\""; message += htmlEscape(loginUrl);
-    message += "\" target=\"_blank\" rel=\"noopener\">Open the CareLink sign-in page</a>";
+    message += "<a class=\"btn\" style=\"width:100%\" href=\""; message += htmlEscape(loginUrl);
+    message += "\" target=\"_blank\" rel=\"noopener\">Sign in to CareLink</a>\r\n";
   } else {
-    message += "<span class=\"warn\">The sign-in page is not available: "; message += htmlEscape(err);
-    message += "</span>";
+    message += "<p class=\"bad\">The CareLink sign-in page isn't available right now: "; message += htmlEscape(err); message += "</p>\r\n";
   }
-  message += "</p>\r\n";
-  message += "<p><b>2.</b> Sign in with the care partner account.</p>\r\n";
-  message += "<p><b>3.</b> When sign-in finishes, the browser tries to open the CareLink app and shows an error "
-             "or a blank page. Copy the full address from the address bar and paste it here straight away, "
-             "because the code in it is single-use and expires within minutes. If your phone hides the address, "
-             "do this step on a computer.</p>\r\n";
-  message += "<form action=\"/carelink\" method=\"post\" accept-charset=\"utf-8\">\r\n";
-  message += "<textarea name=\"pasted\" rows=\"4\" style=\"width:100%;font-size:14px\" "
-             "placeholder=\"Paste the address here\"></textarea>\r\n";
-  message += "<p class=\"note\">You can also paste the contents of a logindata.json file made by the "
-             "carelink-python-client login script.</p>\r\n";
-  message += "<input type=\"submit\" class=\"btn\" value=\"Sign in\">\r\n";
-  message += "<input type=\"button\" class=\"btn2\" value=\"Back\" onClick=\"window.location.href='/?s=dx';\" />\r\n";
-  message += "</form>\r\n";
+  message += "<form action=\"/carelink\" method=\"post\" accept-charset=\"utf-8\" data-wait=\"Signing in to CareLink. This takes a few seconds.\">\r\n";
+  message += "<label class=\"fld\" for=\"pasted\">Paste the red line here</label>"
+             "<textarea class=\"inp\" id=\"pasted\" name=\"pasted\" rows=\"4\" style=\"padding:10px\" placeholder=\"Failed to launch 'com.medtronic.carepartner:/sso?code=...' because...\"></textarea>\r\n";
+  message += "<div class=\"nav\"><a class=\"btn o\" href=\"/\">"; message += WG_BACK_EARLY; message += "Back</a>"
+             "<button class=\"btn g\" type=\"submit\">Finish sign-in</button></div>\r\n";
+  message += "</form>";
+  message += (justSignedIn || signedIn) ? "</div></details>\r\n" : "</div>\r\n";
+  message += "<details style=\"margin-top:14px\"><summary>More</summary><div style=\"padding:0 12px 12px\">";
+  message += "<p class=\"small\">You can also paste the contents of a logindata.json file made by the carelink-python-client login script.</p>";
   if (careLinkHasLogin()) {
-    message += "<form action=\"/carelink\" method=\"post\" style=\"margin-top:14px\">\r\n";
-    message += "<input type=\"hidden\" name=\"action\" value=\"signout\">\r\n";
-    message += "<input type=\"submit\" class=\"btn2\" value=\"Sign out of CareLink\">\r\n";
-    message += "</form>\r\n";
+    message += "<form action=\"/carelink\" method=\"post\"><input type=\"hidden\" name=\"action\" value=\"signout\">"
+               "<button class=\"btn2\" type=\"submit\" style=\"margin:0\">Sign out of CareLink</button></form>";
   }
-  message += "<p class=\"note\">The login is stored only in this device's flash memory, never on the SD card.</p>\r\n";
-  message += "</body>\r\n</html>\r\n";
+  message += "<p class=\"small\">The sign-in is kept only on Wee Glo itself.</p></div></details>\r\n";
+  message += "</main></body>\r\n</html>\r\n";
   w3srv.send(200, "text/html; charset=utf-8", message);
 }
 
@@ -1510,4 +1603,395 @@ void handleNotFound() {
     message += " " + w3srv.argName(i) + ": " + w3srv.arg(i) + "\n";
   }
   w3srv.send(404, "text/plain", message);
+}
+
+// =====================================================================================
+// Wee Glo (DiabetesHub Ireland): the settings checklist.
+// "/" shows five cards in order (Home Wi-Fi, CareLink sign-in, Alarm levels, Side lights,
+// Screen and sound). Each card opens its own short page and saves on its own. The full
+// list of every setting is still there for confident users, at "/all".
+// =====================================================================================
+
+static const char* WG_TICK = "<svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12l5 5 9-10\"/></svg>";
+static const char* WG_CHEV = "<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 6l6 6-6 6\"/></svg>";
+static const char* WG_BACK = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 6l-6 6 6 6\"/></svg>";
+
+// Which of the alarm, light and screen cards have been saved at least once (for the ticks).
+static int wgSeen() {
+  Preferences p; int v = 0;
+  if (p.begin("weeglo", true)) { v = p.getInt("seen", 0); p.end(); }
+  return v;
+}
+static void wgMarkSeen(int bit) {
+  Preferences p;
+  if (p.begin("weeglo", false)) { p.putInt("seen", p.getInt("seen", 0) | bit); p.end(); }
+}
+
+static bool wgWifiDone() {
+  if (cfg.is_task_bootstrapping) return false;
+  for (int i = 0; i < 10; i++) if (cfg.wlanssid[i][0]) return true;
+  return false;
+}
+static bool wgCareLinkDone() { return careLinkHasLogin() && !careLinkNeedsSignIn(); }
+
+static void wgCard(String& m, int n, bool done, const char* href, const char* title, const String& sub) {
+  m += "<a class=\"cl"; if (done) m += " dn"; m += "\" href=\""; m += href; m += "\"";
+  if (strcmp(href, "/card?c=wifi") == 0) m += " data-wait=\"Looking for Wi-Fi networks near Wee Glo. This takes about 10 seconds.\"";
+  m += "><span class=\"ci\">";
+  if (done) m += WG_TICK; else m += n;
+  m += "</span><span class=\"tx\"><b>"; m += title; m += "</b><span>"; m += sub; m += "</span></span><span class=\"ar\">";
+  m += WG_CHEV; m += "</span></a>\r\n";
+}
+
+static void wgPageEnd(String& m, const char* backHref, const char* backLabel) {
+  if (backHref) { m += "<a class=\"btn o\" href=\""; m += backHref; m += "\">"; m += WG_BACK; m += backLabel; m += "</a>\r\n"; }
+  m += "</main></body>\r\n</html>\r\n";
+}
+
+// Wee Glo: a short page in the Wee Glo look, for pages built elsewhere (such as the side light test)
+void wgSendSimplePage(const char* title, const String& body, const char* backHref, const char* backLabel) {
+  String m; m.reserve(2048);
+  pageHeadOpen(m, NULL);
+  m += "<h1>"; m += title; m += "</h1>\r\n<div class=\"card\" style=\"margin-bottom:16px\">"; m += body; m += "</div>\r\n";
+  wgPageEnd(m, backHref, backLabel);
+  w3srv.send(200, "text/html; charset=utf-8", m);
+}
+
+static String wgNum(float v) { return String(v * (cfg.show_mgdl ? 18 : 1), cfg.show_mgdl ? 0 : 1); }
+static const char* wgUnits() { return cfg.show_mgdl ? "mg/dL" : "mmol/L"; }
+
+// Wee Glo finish screen (after the last setup step, or from the link on the settings page).
+// Built from this Wee Glo's own settings. "Play" buttons call /soundtest, which plays the sound once with the lights.
+static String wgSv(const char* d, int w) {
+  String s = "<svg viewBox=\"0 0 24 24\" width=\""; s += w; s += "\" height=\""; s += w;
+  s += "\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">"; s += d; s += "</svg>";
+  return s;
+}
+static void wgRow(String& m, const String& ic, const String& b, const char* sub) {
+  m += "<div class=\"r\">"; m += ic; m += "<div><b>"; m += b; m += "</b><span>"; m += sub; m += "</span></div></div>";
+}
+void wgFinishPage(String& m) {
+  const String iWifi = wgSv("<path d=\"M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0\"/><circle cx=\"12\" cy=\"19.5\" r=\"1\"/>", 22);
+  const String iUser = wgSv("<circle cx=\"12\" cy=\"8\" r=\"4\"/><path d=\"M4 21c0-4 3.6-7 8-7s8 3 8 7\"/>", 22);
+  const String iBell = wgSv("<path d=\"M6 16V11a6 6 0 0 1 12 0v5l2 2H4z\"/><path d=\"M10 21h4\"/>", 22);
+  const String iLight = wgSv("<path d=\"M9 18h6M10 21h4\"/><path d=\"M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z\"/>", 22);
+  const String iCheck = wgSv("<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12.5l2.7 2.7L16 9.8\"/>", 22);
+  const String iPlay = wgSv("<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M10 8.5l5.5 3.5-5.5 3.5z\"/>", 20);
+  const String iClock = wgSv("<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/>", 22);
+  const String iNote = wgSv("<path d=\"M9 18V6l10-2v12\"/><circle cx=\"6.5\" cy=\"18\" r=\"2.5\"/><circle cx=\"16.5\" cy=\"16\" r=\"2.5\"/>", 20);
+  m += "<style>.fin .sec{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px 18px;margin:0 0 14px}"
+       ".fin h2{font-size:18px;margin:0 0 10px;display:flex;align-items:center;gap:8px}.fin h2 svg{color:var(--blue);flex:none}"
+       ".fin .rows{display:grid;gap:8px}.fin .r{display:flex;gap:10px;align-items:flex-start}.fin .r svg{flex:none;color:var(--blue);margin-top:2px}"
+       ".fin .r b{display:block;color:var(--text)}.fin .r span{color:var(--muted);font-size:15px}"
+       ".fin .key{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 16px}.fin .k{display:flex;gap:10px;align-items:center;font-size:15px}"
+       ".fin .dot{flex:none;width:18px;height:18px;border-radius:50%}.fin .sub{font-weight:700;margin:12px 0 6px;font-size:15px}"
+       ".fin .btns{display:flex;gap:10px;flex-wrap:wrap}.fin .pb{display:inline-flex;align-items:center;gap:8px;min-height:46px;padding:0 18px;border-radius:12px;font:inherit;font-weight:700;font-size:15.5px;border:2px solid var(--blue);background:var(--card);color:var(--blue);cursor:pointer}"
+       ".fin .pb.p{background:var(--blue);color:#fff}:root[data-theme=dark] .fin .pb.p{color:#0B1220}.fin .pb[disabled]{opacity:.6;cursor:wait}"
+       ".fin .hero{text-align:center;margin:4px 0 16px}.fin .tk{width:56px;height:56px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;margin:0 auto 8px}"
+       ".fin ol{margin:0;padding-left:22px}.fin ol li{margin:4px 0}.fin h1:focus{outline:none}"
+       ".fin .go{display:flex;align-items:center;justify-content:center;width:100%;min-height:50px;border-radius:12px;background:var(--green);color:#fff;font-weight:700;font-size:16px;text-decoration:none;margin-top:6px}"
+       ".fin .stay{display:flex;align-items:center;justify-content:center;min-height:44px;color:var(--blue);font-weight:600;text-decoration:none;margin-top:6px}</style>\r\n";
+  m += "<div class=\"fin\"><div class=\"hero\"><div class=\"tk\"><svg viewBox=\"0 0 24 24\" width=\"32\" height=\"32\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12l5 5 9-10\"/></svg></div>"
+       "<h1 style=\"margin:0\" id=\"fint\" tabindex=\"-1\">Wee Glo is all set up</h1><p style=\"margin:6px 0 0;color:var(--muted)\">Here's what it's doing now, and what to expect tonight.</p></div>\r\n";
+  // 1: what Wee Glo is doing now
+  m += "<div class=\"sec\"><h2>"; m += iCheck; m += "What Wee Glo is doing now</h2><div class=\"rows\">";
+  String w = "On your Wi-Fi, "; w += htmlEscape(WiFi.SSID());
+  wgRow(m, iWifi, w, "It works anywhere in the house that Wi-Fi reaches.");
+  wgRow(m, iUser, htmlEscape(careLinkStatus()), "A new reading arrives about every 5 minutes.");
+  String a = "Alarm below "; a += wgNum(cfg.snd_alarm); a += " and above "; a += wgNum(cfg.snd_alarm_high); a += " "; a += wgUnits();
+  wgRow(m, iBell, a, "Change these any time under Alarm levels.");
+  const char* lt[4] = {"Side lights off", "Side lights flash with each sound", "Side lights for warnings and alarms", "Side lights always on"};
+  const char* ls[4] = {"Turn them on under Side lights, if you have the battery base.", "They stay off the rest of the time.",
+                       "They stay off while the reading is in range.", "Green while the reading is in range."};
+  int lm = (cfg.LED_strip_mode >= 0 && cfg.LED_strip_mode < 4) ? cfg.LED_strip_mode : 0;
+  wgRow(m, iLight, lt[lm], ls[lm]);
+  m += "</div></div>\r\n";
+  // 3: what the lights and sounds mean
+  m += "<div class=\"sec\"><h2>"; m += iLight; m += "What the lights and sounds mean</h2>";
+  if (lm != 0) {
+    m += "<div class=\"key\">"
+         "<div class=\"k\"><i class=\"dot\" style=\"background:#EF4444\"></i><span><b>Red:</b> low</span></div>"
+         "<div class=\"k\"><i class=\"dot\" style=\"background:#F59E0B\"></i><span><b>Amber:</b> high</span></div>"
+         "<div class=\"k\"><i class=\"dot\" style=\"background:#3B82F6\"></i><span><b>Blue:</b> no new readings</span></div>";
+    if (lm == 3) m += "<div class=\"k\"><i class=\"dot\" style=\"background:#22C55E\"></i><span><b>Green:</b> in range</span></div>";
+    m += "</div><p class=\"sub\">Sounds</p>";
+  }
+  m += "<div class=\"rows\">";
+  wgRow(m, iNote, "Soft four-note chime", "Wee Glo has just started.");
+  wgRow(m, iNote, "3 short high beeps", "A warning, before it becomes an alarm, or no new readings for a while.");
+  wgRow(m, iNote, lm != 0 ? "6 longer beeps, lights flashing" : "6 longer beeps", "An alarm: low or high. Press the middle button to snooze.");
+  m += "</div></div>\r\n";
+  // 5: hear it now
+  m += "<div class=\"sec\"><h2>"; m += iPlay; m += "Hear it now, not at 3am</h2>"
+       "<p style=\"margin:0 0 10px\">Play each sound once";
+  if (lm != 0) m += ", with the lights,";
+  m += " so you know what to listen for. Change the loudness under Screen and sound.</p>"
+       "<div class=\"btns\"><button type=\"button\" class=\"pb p\" data-k=\"alarm\">"; m += iPlay; m += "Play the alarm</button>"
+       "<button type=\"button\" class=\"pb\" data-k=\"warning\">"; m += iPlay; m += "Play the warning</button></div>"
+       "<p class=\"small\" id=\"pbmsg\" role=\"status\" style=\"margin:8px 0 0\"></p></div>\r\n";
+  // 7: is it working?
+  m += "<div class=\"sec\"><h2>"; m += iClock; m += "Is it working?</h2><ol>"
+       "<li>Look at the small number of <b>minutes</b> beside the reading. It should go back to 0 about every 5 minutes.</li>"
+       "<li>If it shows <b>Err</b>, or the minutes keep going up: check the Wi-Fi is on, the phone app that sends readings to CareLink is still running, and CareLink sign-in still shows a tick on the settings page.</li>"
+       "<li>Still stuck? See <b>diabeteshub.ie/wee-glo</b> or email <b>weeglo@diabeteshub.ie</b>.</li></ol></div>\r\n";
+  m += "<a class=\"go\" id=\"fingo\" href=\"" WG_SITE "/wee-glo/setup?step=done\">Finish on DiabetesHub</a>"
+       "<a class=\"stay\" href=\"/\">Stay on Wee Glo settings</a></div>\r\n";
+  m += "<script>(function(){try{history.replaceState(null,'','/?done=1');}catch(e){}"
+       "var msg=document.getElementById('pbmsg');document.querySelectorAll('.fin .pb').forEach(function(b){b.onclick=function(){"
+       "var all=document.querySelectorAll('.fin .pb');all.forEach(function(x){x.disabled=true;});msg.textContent='Playing on Wee Glo now.';"
+       "fetch('/soundtest?k='+b.getAttribute('data-k')).catch(function(){}).then(function(){setTimeout(function(){all.forEach(function(x){x.disabled=false;});msg.textContent='';},b.getAttribute('data-k')==='alarm'?4200:1500);});};});"
+       "var t=document.getElementById('fint');if(t)try{t.focus({preventScroll:true});}catch(e){}})();</script>\r\n";
+  wgPageEnd(m, NULL, NULL);
+  w3srv.send(200, "text/html; charset=utf-8", m);
+}
+
+void handleWeeGloHome() {
+  String m;
+  m.reserve(4096);
+  pageHeadOpen(m, NULL);
+  bool allDone = !cfg.is_task_bootstrapping && wgWifiDone() && wgCareLinkDone() && (wgSeen() & 7) == 7;
+  if (allDone && w3srv.hasArg("done")) { wgFinishPage(m); return; }
+  m += "<h1>Wee Glo settings</h1>\r\n";
+  if (allDone) {
+    static const char* WG_NEXT =
+         "<ol style=\"margin:0;padding-left:22px\">"
+         "<li>You can unplug Wee Glo from the computer. It keeps all its settings, and joins your Wi-Fi anywhere in the house.</li>"
+         "<li>Put Wee Glo where you'll see and hear it, such as by the bed, plugged into a USB charger or on the battery base.</li>"
+         "<li>Keep the pump and phone alarms on too. Wee Glo is an extra display.</li>"
+         "<li>You can close this page. To change a setting later, tap the right-hand button on Wee Glo until you see the square code, and scan it.</li>"
+         "</ol>";
+    m += "<div class=\"ok\" id=\"done\" style=\"margin:0 0 16px\"><p style=\"margin:0 0 6px\"><b>Wee Glo is all set up.</b> "
+         "It shows the readings, and the alarms are on.</p><p style=\"margin:0 0 4px\"><b>What's next</b></p>";
+    m += WG_NEXT; m += "</div>\r\n";
+    // Wee Glo: straight after the last step is saved, a finish screen explains what Wee Glo is doing now,
+    // what the lights and sounds mean, lets you hear the alarm once, and how to tell it's working.
+    m += "<p style=\"margin:-6px 0 16px\"><a href=\"/?done=1\">What Wee Glo is doing now, and hear the alarm</a></p>\r\n";
+    m += "<p class=\"lead\">Your settings. Tap one to change it.</p>\r\n";
+  } else if (cfg.is_task_bootstrapping) {
+    m += "<p class=\"lead\">Start with your home Wi-Fi. The other steps need Wee Glo to be on your Wi-Fi.</p>\r\n";
+  } else {
+    m += "<p class=\"lead\">Tap each step in order. Each one saves on its own.</p>\r\n";
+  }
+  m += "<div class=\"list\">\r\n";
+  String wsub = "Not set up yet";
+  if (wgWifiDone()) { wsub = "Connected to "; wsub += htmlEscape(WiFi.SSID()); }
+  wgCard(m, 1, wgWifiDone(), "/card?c=wifi", "Home Wi-Fi", wsub);
+  String csub = cfg.is_task_bootstrapping ? String("After Wi-Fi") : htmlEscape(careLinkStatus());
+  wgCard(m, 2, wgCareLinkDone(), "/carelink", "CareLink sign-in", csub);
+  int seen = wgSeen();
+  String asub = "Low "; asub += wgNum(cfg.snd_alarm); asub += ", high "; asub += wgNum(cfg.snd_alarm_high); asub += " "; asub += wgUnits();
+  wgCard(m, 3, seen & 1, "/card?c=alarms", "Alarm levels", asub);
+  const char* ledNames[4] = {"Off", "Light with sound", "Warnings and alarms", "Always on"};
+  String lsub = (cfg.LED_strip_mode >= 0 && cfg.LED_strip_mode < 4) ? String(ledNames[cfg.LED_strip_mode]) : String("Off");
+  lsub += ", battery base only";
+  wgCard(m, 4, seen & 2, "/card?c=lights", "Side lights", lsub);
+  wgCard(m, 5, seen & 4, "/card?c=screen", "Screen and sound", "Brightness, time, volume");
+  m += "</div>\r\n";
+  m += "<p class=\"small\" style=\"margin-top:18px\"><a href=\"/all\">Advanced settings</a> &middot; <a href=\"/fwcheck\" data-wait=\"Checking for updates. This takes a few seconds.\">Check for updates</a></p>\r\n";
+  m += "<p class=\"small\">Help: diabeteshub.ie/wee-glo &middot; weeglo@diabeteshub.ie<br>Wee Glo "; m += M5NSversion; m += " &middot; "; m += cfg.deviceName; m += "</p>\r\n";
+  wgPageEnd(m, NULL, NULL);
+  w3srv.send(200, "text/html; charset=utf-8", m);
+}
+
+static void wgField(String& m, const char* id, const char* label, const String& input, const char* note = NULL) {
+  m += "<div><label class=\"fld\" for=\""; m += id; m += "\">"; m += label; m += "</label>"; m += input;
+  if (note) { m += "<p class=\"small\" style=\"margin:4px 0 0\">"; m += note; m += "</p>"; }
+  m += "</div>\r\n";
+}
+static String wgInput(const char* id, const String& value, const char* type = "text", const char* extra = "") {
+  String s = "<input class=\"inp\" id=\""; s += id; s += "\" name=\""; s += id; s += "\" type=\""; s += type;
+  s += "\" value=\""; s += htmlEscape(value); s += "\" "; s += extra; s += ">";
+  return s;
+}
+static String wgSelect(const char* id, const char* const opts[], const int vals[], int n, int cur) {
+  String s = "<select class=\"inp\" id=\""; s += id; s += "\" name=\""; s += id; s += "\">";
+  for (int i = 0; i < n; i++) {
+    s += "<option value=\""; s += vals[i]; s += "\""; if (vals[i] == cur) s += " selected"; s += ">"; s += opts[i]; s += "</option>";
+  }
+  s += "</select>";
+  return s;
+}
+
+static void wgCardForm(String& m, const char* c, int n, const char* title) {
+  m += "<a class=\"bk\" href=\"/\">"; m += WG_BACK; m += " All settings</a><p class=\"cnt\">"; m += n; m += " of 5</p>\r\n";
+  m += "<form class=\"card\" action=\"/card\" method=\"post\" accept-charset=\"utf-8\" data-wait=\"";
+  m += strcmp(c, "wifi") == 0 ? "Saving. Wee Glo restarts and joins your Wi-Fi." : "Saving.";
+  m += "\"><input type=\"hidden\" name=\"c\" value=\""; m += c; m += "\">\r\n";
+  m += "<h2>"; m += title; m += "</h2>\r\n";
+}
+static void wgCardFormEnd(String& m, const char* save) {
+  m += "<div class=\"nav\"><a class=\"btn o\" href=\"/\">"; m += WG_BACK; m += "Back</a><button class=\"btn g\" type=\"submit\">";
+  m += WG_TICK; m += " "; m += save; m += "</button></div></form>\r\n";
+}
+
+static void wgShowCard(const String& c, const String& msg, bool msgOk) {
+  String m;
+  m.reserve(6144);
+  pageHeadOpen(m, NULL);
+  String note;
+  if (msg.length()) { note = "<p class=\""; note += msgOk ? "ok" : "bad"; note += "\">"; note += msg; note += "</p>\r\n"; }
+
+  if (c.equals("wifi")) {
+    wgCardForm(m, "wifi", 1, "Home Wi-Fi");
+    m += note;
+    String saved;
+    for (int i = 0; i < 10; i++) if (cfg.wlanssid[i][0]) { if (saved.length()) saved += ", "; saved += htmlEscape(cfg.wlanssid[i]); }
+    m += "<p>Wee Glo can remember up to 10 Wi-Fi networks, such as home and the grandparents' house.";
+    if (saved.length()) { m += " Saved: <b>"; m += saved; m += "</b>."; }
+    m += "</p>\r\n";
+    int n = WiFi.scanNetworks();
+    m += "<datalist id=\"scan\">";
+    for (int i = 0; i < n; i++) { m += "<option value=\""; m += htmlEscape(WiFi.SSID(i)); m += "\">"; }
+    m += "</datalist>\r\n";
+    WiFi.scanDelete();
+    wgField(m, "ssid", "Wi-Fi name", wgInput("ssid", "", "text", "list=\"scan\" maxlength=\"63\" autocomplete=\"off\" required"), "Tap the box to pick from the networks Wee Glo can see.");
+    wgField(m, "pass", "Wi-Fi password", wgInput("pass", "", "password", "maxlength=\"63\""));
+    const char* srcOpts[1] = {"Medtronic CareLink"}; const int srcVals[1] = {3};
+    wgField(m, "src", "Readings from", wgSelect("src", srcOpts, srcVals, 1, 3));
+    const char* ctyOpts[2] = {"Ireland", "United Kingdom"}; const int ctyVals[2] = {0, 1};
+    wgField(m, "cty", "Country", wgSelect("cty", ctyOpts, ctyVals, 2, strcmp(cfg.cl_country, "GB") == 0 ? 1 : 0));
+    m += "<p class=\"small\">Wee Glo restarts and joins your Wi-Fi when you save.</p>\r\n";
+    wgCardFormEnd(m, "Save Wi-Fi");
+  } else if (c.equals("alarms")) {
+    wgCardForm(m, "alarms", 3, "Alarm levels");
+    m += note;
+    m += "<p>Use the levels your diabetes team gave you. Each side has an early warning and a main alarm.</p>\r\n";
+    m += "<h3 class=\"fld\" style=\"margin-top:14px\">Lows, in " + String(wgUnits()) + "</h3><div class=\"row2\">";
+    wgField(m, "al", "Low alarm", wgInput("al", wgNum(cfg.snd_alarm), "text", "inputmode=\"decimal\""));
+    wgField(m, "wl", "Low warning", wgInput("wl", wgNum(cfg.snd_warning), "text", "inputmode=\"decimal\""));
+    m += "</div><h3 class=\"fld\" style=\"margin-top:14px\">Highs, in " + String(wgUnits()) + "</h3><div class=\"row2\">";
+    wgField(m, "wh", "High warning", wgInput("wh", wgNum(cfg.snd_warning_high), "text", "inputmode=\"decimal\""));
+    wgField(m, "ah", "High alarm", wgInput("ah", wgNum(cfg.snd_alarm_high), "text", "inputmode=\"decimal\""));
+    m += "</div><h3 class=\"fld\" style=\"margin-top:14px\">Timing and volume</h3><div class=\"row2\">";
+    wgField(m, "nr", "No readings (minutes)", wgInput("nr", String(cfg.snd_no_readings), "text", "inputmode=\"numeric\""));
+    wgField(m, "rp", "Repeat alarm (minutes)", wgInput("rp", String(cfg.alarm_repeat), "text", "inputmode=\"numeric\""));
+    wgField(m, "sz", "Snooze (minutes)", wgInput("sz", String(cfg.snooze_timeout), "text", "inputmode=\"numeric\""));
+    wgField(m, "av", "Alarm volume (%)", wgInput("av", String(cfg.alarm_volume), "text", "inputmode=\"numeric\""));
+    wgField(m, "wv", "Warning volume (%)", wgInput("wv", String(cfg.warning_volume), "text", "inputmode=\"numeric\""));
+    m += "</div>\r\n";
+    wgCardFormEnd(m, "Save alarm levels");
+  } else if (c.equals("lights")) {
+    wgCardForm(m, "lights", 4, "Side lights");
+    m += note;
+    m += "<p>For the battery base. The lights glow red for lows and amber for highs, so you can see them across the room. When Wee Glo comes on, they glow navy, green and white for a few seconds. At 5.5, our unicorn number, they run through the rainbow. It's a little celebration, not a warning.</p>\r\n";
+    const char* ledOpts[4] = {"Warnings and alarms (our pick)", "Light with sound", "Always on", "Off"};
+    const int ledVals[4] = {2, 1, 3, 0};
+    wgField(m, "lm", "Show", wgSelect("lm", ledOpts, ledVals, 4, cfg.LED_strip_mode));
+    wgField(m, "lb", "Brightness (%)", wgInput("lb", String(cfg.LED_strip_brightness), "text", "inputmode=\"numeric\""), "10 is gentle at night. 100 is very bright.");
+    m += "<p style=\"margin-top:12px\"><a class=\"btn o\" href=\"/lighttest\">Run the light test</a></p><p class=\"small\">Save first, then run the test.</p>\r\n";
+    wgCardFormEnd(m, "Save side lights");
+  } else if (c.equals("screen")) {
+    wgCardForm(m, "screen", 5, "Screen and sound");
+    m += note;
+    m += "<p>The left button under the screen steps through three brightness levels.</p><div class=\"row2\">\r\n";
+    wgField(m, "b1", "Brightness 1 (%)", wgInput("b1", String(cfg.brightness1), "text", "inputmode=\"numeric\""));
+    wgField(m, "b2", "Brightness 2 (%)", wgInput("b2", String(cfg.brightness2), "text", "inputmode=\"numeric\""));
+    wgField(m, "b3", "Brightness 3 (%)", wgInput("b3", String(cfg.brightness3), "text", "inputmode=\"numeric\""));
+    m += "</div>\r\n";
+    const char* tfOpts[2] = {"24-hour", "AM/PM"}; const int tfVals[2] = {0, 1};
+    wgField(m, "tf", "Time", wgSelect("tf", tfOpts, tfVals, 2, cfg.time_format));
+    const char* suOpts[2] = {"On", "Off"}; const int suVals[2] = {1, 0};
+    wgField(m, "ss", "Chime when Wee Glo starts", wgSelect("ss", suOpts, suVals, 2, cfg.snd_warning_at_startup ? 1 : 0));
+    wgCardFormEnd(m, "Save");
+  } else {
+    w3srv.sendHeader("Location", "/");
+    w3srv.send(302, "text/plain", "");
+    return;
+  }
+  wgPageEnd(m, NULL, NULL);
+  w3srv.send(200, "text/html; charset=utf-8", m);
+}
+
+static bool wgIntArg(const char* k, int lo, int hi, int& out) {
+  if (!w3srv.hasArg(k)) return false;
+  String v = w3srv.arg(k); v.trim();
+  if (v.length() == 0) return false;
+  for (size_t i = 0; i < v.length(); i++) if (!isDigit(v[i])) return false;
+  int x = v.toInt();
+  if (x < lo || x > hi) return false;
+  out = x; return true;
+}
+static bool wgLevelArg(const char* k, float& out) {
+  if (!w3srv.hasArg(k)) return false;
+  String v = w3srv.arg(k); v.trim(); v.replace(",", ".");
+  if (v.length() == 0) return false;
+  float x = v.toFloat() / (cfg.show_mgdl ? 18.0f : 1.0f);
+  if (x < 1.5f || x > 30.0f) return false;
+  out = x; return true;
+}
+
+static void wgRestartPage(const char* title, const char* text) {
+  String m;
+  pageHeadOpen(m, "<meta http-equiv=\"refresh\" content=\"20;url=/\" />\r\n");
+  m += "<h1>"; m += title; m += "</h1><p>"; m += text; m += "</p>\r\n";
+  wgPageEnd(m, NULL, NULL);
+  w3srv.send(200, "text/html; charset=utf-8", m);
+}
+
+void handleWeeGloCard() {
+  String c = w3srv.hasArg("c") ? w3srv.arg("c") : String("");
+  if (w3srv.method() != HTTP_POST) { wgShowCard(c, "", true); return; }
+
+  if (c.equals("wifi")) {
+    String ssid = w3srv.arg("ssid"); ssid.trim();
+    String pass = w3srv.arg("pass");
+    if (ssid.length() == 0 || ssid.length() > 63 || pass.length() > 63) { wgShowCard(c, "Type or pick your Wi-Fi name.", false); return; }
+    int slot = -1;
+    for (int i = 0; i < 10; i++) if (ssid.equals(cfg.wlanssid[i])) { slot = i; break; }
+    if (slot < 0) for (int i = 0; i < 10; i++) if (cfg.wlanssid[i][0] == 0) { slot = i; break; }
+    if (slot < 0) slot = 0;
+    strlcpy(cfg.wlanssid[slot], ssid.c_str(), sizeof(cfg.wlanssid[slot]));
+    strlcpy(cfg.wlanpass[slot], pass.c_str(), sizeof(cfg.wlanpass[slot]));
+    cfg.data_source = 3;
+    strcpy(cfg.cl_country, w3srv.arg("cty").equals("1") ? "GB" : "IE");
+    persistConfigToDisk();
+    String t = "Wee Glo is restarting and joining <b>"; t += htmlEscape(ssid);
+    t += "</b>. Put your phone back on your home Wi-Fi. In a minute, tap the right-hand button on Wee Glo until you see a code, and scan it to come back here.";
+    wgRestartPage("Saved", t.c_str());
+    delay(500);
+    if (cfg.is_task_bootstrapping) WiFi.softAPdisconnect(true);
+    delay(1000);
+    ESP.restart();
+    return;
+  }
+
+  if (c.equals("alarms")) {
+    float al, wl, wh, ah; int nr, rp, sz, av, wv;
+    if (!wgLevelArg("al", al) || !wgLevelArg("wl", wl) || !wgLevelArg("wh", wh) || !wgLevelArg("ah", ah)) {
+      wgShowCard(c, "Check the levels: use numbers such as 4.0 or 14.0.", false); return;
+    }
+    if (!(al < wl && wl < wh && wh <= ah)) {
+      wgShowCard(c, "The levels need to go up in order: low alarm, low warning, high warning, high alarm.", false); return;
+    }
+    if (!wgIntArg("nr", 5, 240, nr) || !wgIntArg("rp", 1, 60, rp) || !wgIntArg("sz", 5, 240, sz) || !wgIntArg("av", 0, 100, av) || !wgIntArg("wv", 0, 100, wv)) {
+      wgShowCard(c, "Check the minutes and volumes: whole numbers, volume from 0 to 100.", false); return;
+    }
+    cfg.snd_alarm = al; cfg.snd_warning = wl; cfg.snd_warning_high = wh; cfg.snd_alarm_high = ah;
+    cfg.snd_no_readings = nr; cfg.alarm_repeat = rp; cfg.snooze_timeout = sz; cfg.alarm_volume = av; cfg.warning_volume = wv;
+    persistConfigToDisk(); wgMarkSeen(1);
+  } else if (c.equals("lights")) {
+    int lm, lb;
+    if (!wgIntArg("lm", 0, 3, lm) || !wgIntArg("lb", 1, 100, lb)) { wgShowCard(c, "Check the brightness: a number from 1 to 100.", false); return; }
+    cfg.LED_strip_mode = lm; cfg.LED_strip_brightness = lb;
+    if (cfg.LED_strip_count <= 0) cfg.LED_strip_count = 10;   // the M5GO battery base has 10 lights
+    cfg.LED_strip_pin = halSafeLedPin(cfg.LED_strip_pin);
+    persistConfigToDisk(); wgMarkSeen(2);
+    if (lm == 0) { pixels.clear(); pixels.show(); }
+  } else if (c.equals("screen")) {
+    int b1, b2, b3, tf, ss;
+    if (!wgIntArg("b1", 1, 100, b1) || !wgIntArg("b2", 1, 100, b2) || !wgIntArg("b3", 1, 100, b3) || !wgIntArg("tf", 0, 1, tf) || !wgIntArg("ss", 0, 1, ss)) {
+      wgShowCard(c, "Check the brightness: numbers from 1 to 100.", false); return;
+    }
+    cfg.brightness1 = b1; cfg.brightness2 = b2; cfg.brightness3 = b3; cfg.time_format = tf; cfg.snd_warning_at_startup = ss;
+    lcdBrightness = b1; lcdSetBrightness(b1);
+    persistConfigToDisk(); wgMarkSeen(4);
+  } else {
+    w3srv.sendHeader("Location", "/"); w3srv.send(302, "text/plain", ""); return;
+  }
+  M5.Lcd.fillScreen(BLACK);
+  draw_page();
+  // Wee Glo: once the last step is saved, the home page opens with the "all set up" pop-up
+  bool nowDone = !cfg.is_task_bootstrapping && wgWifiDone() && wgCareLinkDone() && (wgSeen() & 7) == 7;
+  w3srv.sendHeader("Location", nowDone ? "/?done=1" : "/");
+  w3srv.send(303, "text/plain", "");
 }

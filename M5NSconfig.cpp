@@ -2,21 +2,21 @@
 #include <Preferences.h>
 
 /*
- * Derives a unique device name "M5NS-XXXX" from the last two bytes of the ESP32's
- * factory eFuse MAC address, so multiple devices on one network get distinct mDNS
- * names / SoftAP SSIDs instead of colliding on the fixed "M5NS". Only replaces
- * deviceName when it is empty or still the legacy fixed "M5NS" default, so a name
- * the user customized is left alone.
- *
- * The Android M5StackLoader app (esp/DeviceName.kt) derives this exact same suffix
- * independently from the same eFuse bytes read over the esptool serial protocol, so
- * both sides agree on the name without any communication between them.
+ * Wee Glo: derives a unique device name "WeeGlo-XXXX" from the last two bytes of the ESP32's
+ * factory eFuse MAC address, so several displays on one network get distinct mDNS names
+ * (weeglo-xxxx.local) and setup Wi-Fi names. Replaces deviceName only when it is empty, the
+ * old fixed "M5NS", or the old automatic "M5NS-XXXX" for this same device, so a name the
+ * user chose is left alone. (The M5Stack Loader Android app still predicts "M5NS-XXXX";
+ * Wee Glo is installed from diabeteshub.ie instead, so that doesn't matter here.)
  */
 void applyDefaultDeviceName(tConfig *cfg) {
-  if (strlen(cfg->deviceName) != 0 && strcasecmp(cfg->deviceName, "M5NS") != 0)
-    return;
   uint64_t mac = ESP.getEfuseMac();
-  snprintf(cfg->deviceName, sizeof(cfg->deviceName), "M5NS-%02X%02X",
+  char oldAuto[16];
+  snprintf(oldAuto, sizeof(oldAuto), "M5NS-%02X%02X", (uint8_t)(mac >> 32), (uint8_t)(mac >> 40));
+  if (strlen(cfg->deviceName) != 0 && strcasecmp(cfg->deviceName, "M5NS") != 0 &&
+      strcasecmp(cfg->deviceName, oldAuto) != 0)
+    return;
+  snprintf(cfg->deviceName, sizeof(cfg->deviceName), "WeeGlo-%02X%02X",
            (uint8_t)(mac >> 32), (uint8_t)(mac >> 40));
 }
 
@@ -70,7 +70,7 @@ void readConfigFromFlash(tConfig *cfg) {
     Serial.println("Reading configuration from Preferences M5NSconfig");
     prefs.getString("nightscout", cfg->url, 128);
     prefs.getString("token", cfg->token, 64);
-    cfg->data_source = prefs.getInt("data_source", 0);
+    cfg->data_source = prefs.getInt("data_source", 3);   // Wee Glo: Medtronic CareLink by default
     prefs.getString("dexcom_user", cfg->dexcom_user, 64);
     prefs.getString("dexcom_pass", cfg->dexcom_pass, 64);
     cfg->dexcom_server = prefs.getInt("dexcom_server", 0);
@@ -78,6 +78,8 @@ void readConfigFromFlash(tConfig *cfg) {
     prefs.getString("libre_pass", cfg->libre_pass, 64);
     cfg->libre_server = prefs.getInt("libre_server", 12);
     prefs.getString("cl_country", cfg->cl_country, 4);
+    if(strlen(cfg->cl_country)==0)
+      strcpy(cfg->cl_country, "IE");   // Wee Glo: Ireland by default
     prefs.getString("cl_patient", cfg->cl_patient, 64);
     prefs.getString("bootpic", cfg->bootPic, 64);
     prefs.getString("user_name", cfg->userName, 32);
@@ -85,7 +87,7 @@ void readConfigFromFlash(tConfig *cfg) {
       strcpy(cfg->userName, " ");
     prefs.getString("device_name", cfg->deviceName, 32);
     applyDefaultDeviceName(cfg);
-    cfg->timeZone = prefs.getInt("time_zone", 3600);
+    cfg->timeZone = prefs.getInt("time_zone", 0);   // Wee Glo: Irish time (summer time is automatic, see wifi_connect)
     cfg->dst = prefs.getInt("dst", 0);
     cfg->show_mgdl = prefs.getInt("show_mgdl", 0);
     cfg->show_current_time = prefs.getInt("show_cur_time", 1);
@@ -122,7 +124,7 @@ void readConfigFromFlash(tConfig *cfg) {
     cfg->display_rotation = prefs.getInt("display_rotate", 1);
     cfg->invert_display = prefs.getInt("invert_display", -1);
     cfg->temperature_unit = prefs.getInt("temperat_unit", 1);
-    cfg->LED_strip_mode = prefs.getInt("LED_strip_mode", 0);
+    cfg->LED_strip_mode = prefs.getInt("LED_strip_mode", 2);   // Wee Glo: side lights on (warnings and alarms) by default
     cfg->LED_strip_pin = prefs.getInt("LED_strip_pin", 15);
     cfg->LED_strip_count = prefs.getInt("LED_strip_count", 10);
     cfg->LED_strip_brightness = prefs.getInt("LED_strip_brigh", 10);

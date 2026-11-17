@@ -11,13 +11,20 @@
 
 #if defined(DEVICE_JC3248W535)
   #include "hal_jc3248w535.h"
+  inline int halSafeLedPin(int pin) { return pin; }
 #elif defined(DEVICE_WS_TOUCH_LCD_35)
   #include "hal_ws_touchlcd35.h"
+  inline int halSafeLedPin(int pin) { return pin; }
 #else
   #include <M5Unified.h>
   // SD wiring differs per device: M5 boards are handled by the variant's default CS,
   // the shim boards bring their own SPI bus (see their halSDBegin()).
   inline bool halSDBegin() { return SD.begin(); }
+  // On the Core2, GPIO 15 is the screen's D/C line: an LED strip on pin 15 turns the screen
+  // black. The M5GO battery base's side lights are on GPIO 25, so on a Core2 pin 15 becomes 25.
+  inline int halSafeLedPin(int pin) {
+    return (M5.getBoard() == m5::board_t::board_M5StackCore2 && pin == 15) ? 25 : pin;
+  }
 #endif
 
 #endif

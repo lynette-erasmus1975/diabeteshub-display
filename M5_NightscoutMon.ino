@@ -88,6 +88,8 @@ Adafruit_NeoPixel pixels(10, 15, NEO_GRB + NEO_KHZ800);
 #include "M5NSDexcom.h"
 #include "M5NSLibre.h"
 #include "M5NSCareLink.h"
+#include "WeeGloImprov.h"
+#include "WeeGloBoot.h"
 
 #include <Wire.h>     //The DHT12 uses I2C comunication.
 #include "DHT12.h"
@@ -99,7 +101,7 @@ SHT3X sht30;
 #include "microdot.h"
 MicroDot MD;
 
-String M5NSversion("2026082101");
+String M5NSversion("2026111515");   // Wee Glo version: yyyymmddnn, raise it for every release
 
 #define VIBfreq 10000
 #define VIBchannel 14
@@ -381,15 +383,13 @@ void startupLogo() {
     lcdSetBrightness(0);
     if(!SD.exists(cfg.bootPic)) {
       // M5.Lcd.pushImage(0, 0, 320, 240, (uint16_t *)gImage_logoM5);
+      // Wee Glo start-up screen (DiabetesHub heart, "Wee Glo", and thanks to the original project)
       M5.Lcd.clear();
-      M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-      M5.Lcd.drawString("M5 Stack", 120, 60);
-      M5.Lcd.drawString("Nightscout monitor", 60, 80);
-      M5.Lcd.drawString("(c) 2019-21 Martin Lukasek", 0, 120);
+      M5.Lcd.drawJpg(weeglo_boot_jpg, sizeof(weeglo_boot_jpg), 0, 0);
     } else {
       M5.Lcd.drawJpgFile(SD, cfg.bootPic);
     }
-    lcdSetBrightness(100);
+    lcdSetBrightness(cfg.brightness1 > 0 ? cfg.brightness1 : 50);  // Wee Glo: the normal brightness, not full: full brightness drew enough power to make the chime crackle
     M5.update();
 }
 
@@ -424,48 +424,188 @@ void play_tone(uint16_t frequency, uint32_t duration, uint8_t volume) {
   }
 }
 
-void sndAlarm() {
-  for(int j=0; j<6; j++) {
-    if(cfg.LED_strip_mode != 0) {
-      int maxint = 255;
-      maxint *= cfg.LED_strip_brightness;
-      maxint /= 100;
-      pixels.fill(pixels.Color(maxint, 0, 0));
-      pixels.show();
+// DiabetesHub light colours on the LED strip (for example the M5GO battery base's side lights):
+// red for a low, amber for a high, blue when no new readings arrive.
+// (plain int codes, not an enum, so the Arduino build's automatic function prototypes still compile)
+const int DH_LED_LOW = 0, DH_LED_HIGH = 1, DH_LED_NODATA = 2;
+static int ledAlertKind = DH_LED_LOW;
+uint32_t ledAlertColor(int kind) {
+  int m = 255 * cfg.LED_strip_brightness / 100;
+  switch (kind) {
+    case DH_LED_HIGH:   return pixels.Color(m, m * 100 / 255, 0); // amber
+    case DH_LED_NODATA: return pixels.Color(0, m * 90 / 255, m);  // blue
+    default:         return pixels.Color(m, 0, 0);             // red
+  }
+}
+
+// The unicorn number: when a new reading shows exactly 5.5 mmol/L (99 mg/dL), the side lights run
+// through every colour for about 8 seconds as a small celebration. Once per reading, at the normal
+// light brightness, only when the LED strip is switched on. Then the lights go back to normal.
+static time_t dhUnicornShownFor = 0;
+void dhRainbowRun(int turns = 2) {
+  int bright = 255 * cfg.LED_strip_brightness / 100;
+  for (long hue = 0; hue < 65536L * turns; hue += 256) {  // Wee Glo: each turn takes about 4 seconds, so 2 turns is about 8
+    pixels.rainbow((uint16_t)hue, 1, 255, bright, false);  // no gamma: gamma made the rainbow much dimmer than the other colours
+    pixels.show();
+    delay(15);
+  }
+}
+// Start-up lights in the Wee Glo logo colours: navy blue, glowing green and white flow along the
+// side lights for about 3 seconds, then fade out. The rainbow is kept for a 5.5 reading.
+static uint32_t dhMix(const uint8_t *a, const uint8_t *b, int f, int bright) {  // f 0..255 from a to b
+  int r = (a[0] * (255 - f) + b[0] * f) / 255, g = (a[1] * (255 - f) + b[1] * f) / 255, bl = (a[2] * (255 - f) + b[2] * f) / 255;
+  return pixels.Color(r * bright / 255, g * bright / 255, bl * bright / 255);
+}
+// Start-up chime: four soft rising notes (C, E, G, high C), quiet on purpose. It also
+// shows the speaker works, so it replaces the old 3000 Hz test beep ("Test warning at startup").
+// Between the first (harsh) and second (too soft) choice of notes.
+static const uint16_t dhChimeHz[4] = {784, 988, 1175, 1568};  // G, B, D, high G: the small speaker is much quieter below about 700 Hz
+static const uint16_t dhChimeMs[4] = {140, 140, 140, 420};
+static const int dhChimeFrame[4] = {0, 12, 24, 36};  // about 0.2 seconds apart, in time with the lights
+// Before the chime: side lights off, and a short pause so the power has settled after the start-up screen
+// lights up. The chime then sounds the same on every start, including the restart after the Wi-Fi is added
+// (that start shows the start-up screen at full brightness, and the chime crackled straight after it).
+static void dhChimeQuiet() {
+  pixels.clear();
+  pixels.show();
+  delay(400);
+}
+static void dhChimeNote(int i) {
+  // A fixed level, not tied to the warning volume. Tested on a Core2: 64 with these notes was too loud, 32 a
+  // little too soft, so 40. The lights stay off until the chime ends, so it doesn't crackle.
+  int v = 40;
+  // Safety net: after a software restart the speaker came out much louder, so play the chime far quieter then.
+  if (esp_reset_reason() == ESP_RST_SW) v = 12;
+  M5.Speaker.setVolume(v);
+  M5.Speaker.tone(dhChimeHz[i], dhChimeMs[i]);
+}
+void dhWeeGloChime() {  // the chime on its own, when the side lights are off
+  dhChimeQuiet();
+  for (int i = 0; i < 4; i++) { dhChimeNote(i); while (M5.Speaker.isPlaying()) delay(1); delay(i < 3 ? 60 : 250); }
+}
+// Start-up lights: the whole strip shows one Wee Glo colour at a time, so each is easy to see:
+// navy fades in and holds, blends to green and holds, blends to white and holds, then fades out.
+// About 5 seconds in all. The chime plays over the first second.
+void dhWeeGloRun(bool chime) {
+  // Strong LED versions of the logo colours: the pastel screen colours look almost white on the LEDs.
+  static const uint8_t wg[3][3] = {{0, 30, 255}, {0, 255, 40}, {255, 255, 255}};  // navy blue, green, white
+  static const uint8_t off[3] = {0, 0, 0};
+  const unsigned long FADE = 400, HOLD = 1000;   // ms
+  const unsigned long TOTAL = 3 * (FADE + HOLD) + FADE;
+  int bright = 255 * cfg.LED_strip_brightness / 100;
+  if (bright < 102) bright = 102;   // at least 40% for the start-up show, so each colour is easy to see
+  int n = pixels.numPixels();
+  if (n < 1) { if (chime) dhWeeGloChime(); return; }
+  // The chime plays first, on its own, and the lights start once it has finished. Playing the notes while the
+  // side lights change colour made the small speaker crackle and distort (the lights draw power and CPU time
+  // in short bursts, right when the speaker needs a steady supply).
+  if (chime) {
+    improvBeacon();
+    dhChimeQuiet();
+    for (int i = 0; i < 4; i++) {
+      dhChimeNote(i);
+      while (M5.Speaker.isPlaying()) delay(1);
+      delay(i < 3 ? 60 : 250);
     }
+  }
+  unsigned long t0 = millis(), lastBeacon = 0;
+  for (;;) {
+    unsigned long t = millis() - t0;
+    if (t > TOTAL) break;
+    if (t - lastBeacon >= 300 || lastBeacon == 0) { improvBeacon(); lastBeacon = t ? t : 1; }  // tell the install page we're here
+    int phase = t / (FADE + HOLD);              // 0 navy, 1 green, 2 white, 3 fading out
+    unsigned long in = t % (FADE + HOLD);
+    const uint8_t *from = phase == 0 ? off : wg[phase - 1];
+    const uint8_t *to = phase < 3 ? wg[phase] : off;
+    int f = in >= FADE ? 255 : (int)(in * 255 / FADE);
+    pixels.fill(dhMix(from, to, f, bright));
+    pixels.show();
+    delay(15);
+  }
+  pixels.clear();
+  pixels.show();
+}
+// After a rainbow or a test: green in "light always" mode, otherwise off. The next reading
+// sets the right colour again if there's an alert.
+void dhLightsBackToNormal() {
+  if (cfg.LED_strip_mode == 3) pixels.fill(pixels.Color(0, 255 * cfg.LED_strip_brightness / 100, 0));
+  else pixels.clear();
+  pixels.show();
+}
+void dhUnicornRainbow(struct NSinfo *ns) {
+  if (cfg.LED_strip_mode == 0) return;
+  if (lroundf(ns->sensSgv * 10.0f) != 55) return;
+  if (ns->sensTime == 0 || ns->sensTime == dhUnicornShownFor) return;
+  dhUnicornShownFor = ns->sensTime;
+  dhRainbowRun();
+  dhLightsBackToNormal();
+}
+
+// Light test, opened from "Test the side lights" on the settings page: shows red (low), amber (high),
+// blue (no readings) and green (in range) for 2 seconds each, then the unicorn rainbow. Lights only, no sound.
+void wgSendSimplePage(const char* title, const String& body, const char* backHref, const char* backLabel);  // M5NSWebConfig.cpp
+// Sound test from the Wee Glo finish screen: plays the alarm or the warning once, with the side lights.
+void handleSoundTest() {
+  bool alarm = w3srv.arg("k") != "warning";
+  w3srv.send(204, "text/plain", "");
+  ledAlertKind = DH_LED_LOW;
+  if (alarm) sndAlarm(); else sndWarning();
+  dhLightsBackToNormal();
+}
+void handleLightTest() {
+  String body;
+  if (cfg.LED_strip_mode == 0) {
+    body = "<p style=\"margin:0\">The side lights are switched off. Choose <b>Warnings and alarms</b> under Side lights, save, then try again.</p>";
+  } else {
+    body = "<p style=\"margin:0\">Watch the display now. You'll see <b>red</b> (low), <b>amber</b> (high), <b>blue</b> (no readings) and <b>green</b> (in range) "
+           "for 2 seconds each, then the <b>unicorn rainbow</b>. It takes about 12 seconds. There's no sound.</p>";
+  }
+  wgSendSimplePage("Side light test", body, "/card?c=lights", "Back to Side lights");  // in the Wee Glo look
+  if (cfg.LED_strip_mode == 0) return;
+  const int kinds[3] = {DH_LED_LOW, DH_LED_HIGH, DH_LED_NODATA};
+  for (int i = 0; i < 3; i++) { pixels.fill(ledAlertColor(kinds[i])); pixels.show(); delay(2000); }
+  pixels.fill(pixels.Color(0, 255 * cfg.LED_strip_brightness / 100, 0)); pixels.show(); delay(2000);
+  dhRainbowRun();
+  dhLightsBackToNormal();
+}
+
+void sndAlarm() {
+  // Wee Glo: beep, then flash. The side lights flash in the gap after each beep instead of during it, so the
+  // lights and the speaker don't draw power at the same moment (that made the small speaker crackle).
+  for(int j=0; j<6; j++) {
     if( cfg.dev_mode )
       play_tone(660, 400, 1);
     else
       play_tone(660, 400, cfg.alarm_volume);
     if(cfg.LED_strip_mode != 0) {
-      pixels.clear();
+      pixels.fill(ledAlertColor(ledAlertKind));
       pixels.show();
     }
     delay(200);
+    if(cfg.LED_strip_mode != 0) {
+      pixels.clear();
+      pixels.show();
+    }
   }
 }
 
 void sndWarning() {
+  // Wee Glo: beep, then flash. The side lights flash in the gap after each beep instead of during it, so the
+  // lights and the speaker don't draw power at the same moment (that made the small speaker crackle).
   for(int j=0; j<3; j++) {
-    if(cfg.LED_strip_mode != 0) {
-      int maxint = 255;
-      maxint *= cfg.LED_strip_brightness;
-      maxint /= 100;
-      int lessint = 192;
-      lessint *= cfg.LED_strip_brightness;
-      lessint /= 100;
-      pixels.fill(pixels.Color(maxint, lessint, 0));
-      pixels.show();
-    }
     if( cfg.dev_mode )
       play_tone(3000, 100, 1);
     else
       play_tone(3000, 100, cfg.warning_volume);
     if(cfg.LED_strip_mode != 0) {
-      pixels.clear();
+      pixels.fill(ledAlertColor(ledAlertKind));
       pixels.show();
     }
     delay(300);
+    if(cfg.LED_strip_mode != 0) {
+      pixels.clear();
+      pixels.show();
+    }
   }
 }
 
@@ -725,7 +865,7 @@ void wifi_connect() {
     while(WiFiMultiple.run() != WL_CONNECTED) {
         Serial.print(".");
         M5.Lcd.print(".");
-        delay(500);
+        for(int k=0; k<10; k++) { improvLoop(); delay(50); }   // Wee Glo: Wi-Fi can still be set over USB
     }
   }
 
@@ -775,6 +915,13 @@ void wifi_connect() {
     M5.Lcd.setCursor(165, 26);
     M5.Lcd.println("Scan to join:");
 
+    // Wee Glo: name the screen, bottom left under the text column
+    M5.Lcd.setTextSize(2);
+    M5.Lcd.setTextColor(0x8775, TFT_BLACK);   // the Wee Glo green, #86EFAC in RGB565
+    M5.Lcd.setCursor(4, 214);
+    M5.Lcd.println("Wee Glo setup");
+    M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
+
     // Most phone camera apps recognize this format natively and offer to join with one tap.
     char wifiQR[96];
     snprintf(wifiQR, sizeof(wifiQR), "WIFI:S:%s;T:WPA;P:%s;;", cfg.deviceName, ssid_passphrase);
@@ -787,7 +934,11 @@ void wifi_connect() {
     Serial.println(WiFi.localIP());
     M5.Lcd.println(WiFi.localIP());
 
-    configTime(cfg.timeZone, cfg.dst, ntpServer, "time.nist.gov", "time.google.com");
+    // Wee Glo: in Ireland with no manual offsets, follow Irish summer time automatically
+    if(strcmp(cfg.cl_country, "IE")==0 && cfg.timeZone==0 && cfg.dst==0)
+      configTzTime("GMT0IST,M3.5.0/1,M10.5.0", ntpServer, "time.nist.gov", "time.google.com");
+    else
+      configTime(cfg.timeZone, cfg.dst, ntpServer, "time.nist.gov", "time.google.com");
     delay(1000);
     Serial.print("Waiting for time.");
     int i = 0;
@@ -1354,6 +1505,7 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
     // red alarm state
     // M5.Lcd.fillRect(110, 220, 100, 20, TFT_RED);
     Serial.println("ALARM LOW");
+    ledAlertKind = DH_LED_LOW;
     M5.Lcd.fillRect(0, 220, 320, 20, TFT_RED);
     M5.Lcd.setTextColor(TFT_BLACK, TFT_RED);
     int stw=M5.Lcd.textWidth(tmpStr);
@@ -1363,7 +1515,7 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
         lastAlarmTime = mktime(&timeinfo);
     }
     if(cfg.LED_strip_mode>=2) {
-      pixels.fill(pixels.Color(maxint, 0, 0));
+      pixels.fill(ledAlertColor(ledAlertKind));
       pixels.show();
     } else {
       if(cfg.LED_strip_mode==1) {
@@ -1376,6 +1528,7 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
       // yellow warning state
       // M5.Lcd.fillRect(110, 220, 100, 20, TFT_YELLOW);
       Serial.println("WARNING LOW");
+      ledAlertKind = DH_LED_LOW;
       M5.Lcd.fillRect(0, 220, 320, 20, TFT_YELLOW);
       M5.Lcd.setTextColor(TFT_BLACK, TFT_YELLOW);
       int stw=M5.Lcd.textWidth(tmpStr);
@@ -1385,7 +1538,7 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
         lastAlarmTime = mktime(&timeinfo);
       }
       if(cfg.LED_strip_mode>=2) {
-        pixels.fill(pixels.Color(maxint, lessint, 0));
+        pixels.fill(ledAlertColor(ledAlertKind));
         pixels.show();
       } else {
         if(cfg.LED_strip_mode==1) {
@@ -1398,6 +1551,7 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
         // red alarm state
         // M5.Lcd.fillRect(110, 220, 100, 20, TFT_RED);
         Serial.println("ALARM HIGH");
+        ledAlertKind = DH_LED_HIGH;
         M5.Lcd.fillRect(0, 220, 320, 20, TFT_RED);
         M5.Lcd.setTextColor(TFT_BLACK, TFT_RED);
         int stw=M5.Lcd.textWidth(tmpStr);
@@ -1407,7 +1561,7 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
           lastAlarmTime = mktime(&timeinfo);
         }
         if(cfg.LED_strip_mode>=2) {
-          pixels.fill(pixels.Color(maxint, 0, 0));
+          pixels.fill(ledAlertColor(ledAlertKind));
           pixels.show();
         } else {
           if(cfg.LED_strip_mode==1) {
@@ -1420,6 +1574,7 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
           // yellow warning state
           // M5.Lcd.fillRect(110, 220, 100, 20, TFT_YELLOW);
           Serial.println("WARNING HIGH");
+          ledAlertKind = DH_LED_HIGH;
           M5.Lcd.fillRect(0, 220, 320, 20, TFT_YELLOW);
           M5.Lcd.setTextColor(TFT_BLACK, TFT_YELLOW);
           int stw=M5.Lcd.textWidth(tmpStr);
@@ -1429,7 +1584,7 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
             lastAlarmTime = mktime(&timeinfo);
           }
           if(cfg.LED_strip_mode>=2) {
-            pixels.fill(pixels.Color(maxint, lessint, 0));
+            pixels.fill(ledAlertColor(ledAlertKind));
             pixels.show();
           } else {
             if(cfg.LED_strip_mode==1) {
@@ -1442,16 +1597,20 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
             // LONG TIME NO READINGS -> yellow warning state
             // M5.Lcd.fillRect(110, 220, 100, 20, TFT_YELLOW);
             Serial.println("WARNING NO READINGS");
+            ledAlertKind = DH_LED_NODATA;
             M5.Lcd.fillRect(0, 220, 320, 20, TFT_YELLOW);
             M5.Lcd.setTextColor(TFT_BLACK, TFT_YELLOW);
             int stw=M5.Lcd.textWidth(tmpStr);
             M5.Lcd.drawString(tmpStr, 159-stw/2, 240);
-            if( (alarmDifSec>cfg.alarm_repeat*60) && (snoozeRemaining<=0) ) {
+            // Wee Glo: no "no readings" beeps until a first reading has arrived. Straight after the Wi-Fi is added,
+            // CareLink isn't set up yet, so there are no readings by design, and the beeps sounded like a loud,
+            // distorted second start-up sound. The yellow bar still shows.
+            if( (ns->sensTime > 0) && (alarmDifSec>cfg.alarm_repeat*60) && (snoozeRemaining<=0) ) {
               sndWarning();
               lastAlarmTime = mktime(&timeinfo);
             }
             if(cfg.LED_strip_mode>=2) {
-              pixels.fill(pixels.Color(maxint, lessint, 0));
+              pixels.fill(ledAlertColor(ledAlertKind));
               pixels.show();
             } else {
               if(cfg.LED_strip_mode==1) {
@@ -1464,6 +1623,7 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
               // LOOP ERROR -> red alarm state
               // M5.Lcd.fillRect(110, 220, 100, 20, TFT_RED);
               Serial.println("LOOP ERROR");
+              ledAlertKind = DH_LED_LOW;
               M5.Lcd.fillRect(0, 220, 320, 20, TFT_RED);
               M5.Lcd.setTextColor(TFT_BLACK, TFT_RED);
               int stw=M5.Lcd.textWidth(tmpStr);
@@ -1475,7 +1635,7 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
                 lastAlarmTime = mktime(&timeinfo);
               }
               if(cfg.LED_strip_mode>=2) {
-                pixels.fill(pixels.Color(maxint, 0, 0));
+                pixels.fill(ledAlertColor(ledAlertKind));
                 pixels.show();
               } else {
                 if(cfg.LED_strip_mode==1) {
@@ -1496,6 +1656,7 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
                   pixels.show();
                 }
               }
+              dhUnicornRainbow(ns);
               // draw info line
               char infoStr[64];
               if(dispPage >= PAGE_ERRLOG) {
@@ -2309,7 +2470,7 @@ void draw_page() {
       M5.Lcd.fillRect(0, 0, 264, 18, TFT_BLACK);
       M5.Lcd.setFreeFont(FMB9);
       M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-      M5.Lcd.drawString("Scan to open config", 0, 0);
+      M5.Lcd.drawString("Scan: Wee Glo settings", 0, 0);
 
       // second header row: hostname/IP shown above the QR too, not just below it
       M5.Lcd.fillRect(0, 18, 320, 18, TFT_BLACK);
@@ -2354,6 +2515,8 @@ void setup() {
     auto M5cfg = M5.config();
     M5cfg.clear_display = true;
     M5cfg.internal_spk  = true;   // enable board speaker (DAC on Basic, I2S on Core2/CoreS3)
+    M5cfg.serial_baudrate = 115200;  // Wee Glo: start USB serial. M5Unified 0.2.x leaves it off unless asked,
+                                     // and the install page needs it for the Wi-Fi box (Improv) and Logs
     M5.begin(M5cfg);
 
     // prevent button A "ghost" random presses on older versions
@@ -2417,6 +2580,10 @@ void setup() {
       MD.writeString("*M5NS*");
     }
 
+    // Core2: never touch GPIO 15 (the screen's D/C line). setPin() before begin() only stores
+    // the pin, so the strip starts on the safe pin and pin 15 is left alone.
+    cfg.LED_strip_pin = halSafeLedPin(cfg.LED_strip_pin);
+    if (halSafeLedPin(15) != 15) pixels.setPin(halSafeLedPin(15));
     pixels.begin();
     pixels.clear(); // clear M5Stack Fire internal LEDs
     pixels.show();
@@ -2474,6 +2641,7 @@ void setup() {
     // M5.Button.BtnA.isPressed( )
     // preferences.getBool("NeedsBootstrap", false)
     // recall from memory
+    bool wgRan = false;  // the Wee Glo start-up lights have run
     preferences.begin("M5StackNS", false);
     // preferences.putBool("NeedsBootstrap", cfg.is_task_bootstrapping);
     // is_task_bootstrapping = preferences.getBool("NeedsBootstrap", false);
@@ -2485,40 +2653,33 @@ void setup() {
       preferences.remove("SnoozeUntil");
     } else {
       // normal startup so decide by M5NS.INI if to play startup sound
-      if(cfg.snd_warning_at_startup) {
-        play_tone(3000, 100, cfg.warning_volume);
-        delay(500);
+      // Wee Glo start-up chime: played with the side lights below, or on its own when they're off
+      bool wgChime = cfg.snd_warning_at_startup && cfg.warning_volume > 0;
+      bool wgLights = (cfg.LED_strip_mode != 0 && cfg.LED_strip_count > 0);
+      if(wgChime && !wgLights) {
+        dhWeeGloChime();
       }
       if(cfg.snd_alarm_at_startup) {
         play_tone(660, 400, cfg.alarm_volume);
         delay(500);
       }
+      // Wee Glo: the side lights glow in the Wee Glo colours (navy, green, white) with the chime as Wee Glo comes on
+      // (battery base side lights, only when they're switched on). Not after a soft restart.
+      if(wgLights) {
+        dhWeeGloRun(wgChime);
+        dhLightsBackToNormal();
+        wgRan = true;
+      }
     }
     preferences.end();
 
     if(cfg.LED_strip_mode != 0) {
-      int maxint = 255;
-      maxint *= cfg.LED_strip_brightness;
-      maxint /= 100;
-      int lessint = 192;
-      lessint *= cfg.LED_strip_brightness;
-      lessint /= 100;
-      if(cfg.LED_strip_count>2) {
-        for(int i=0; i<cfg.LED_strip_count-3; i++) {
-          pixels.setPixelColor(i, pixels.Color(maxint, 0, 0));   
-          pixels.setPixelColor(i+1, pixels.Color(maxint, lessint, 0));   
-          pixels.setPixelColor(i+2, pixels.Color(0, maxint, 0));
-          pixels.setPixelColor(i+3, pixels.Color(0, 0, maxint));
-          pixels.show();
-          delay(1500/(cfg.LED_strip_count-3));
-          pixels.setPixelColor(i, pixels.Color(0, 0, 0));
-        }
+      // Wee Glo: the start-up lights in the Wee Glo colours (they replace the original red, amber,
+      // green and blue chase). After a soft restart they run quietly, without the chime.
+      if(!wgRan && cfg.LED_strip_count > 0) {
+        dhWeeGloRun(false);
       }
-      pixels.fill(pixels.Color(maxint, lessint, 0));
-      pixels.show();
-      delay(300);
-      pixels.clear();
-      pixels.show();
+      dhLightsBackToNormal();
     } else {
       if (!is_task_bootstrapping) {
         delay(1000);
@@ -2567,7 +2728,9 @@ void setup() {
     // universal recovery path. This also fixes loop() calling w3srv.handleClient() while
     // bootstrapping against a server that was never begun.
     if(cfg.disable_web_server==0 || is_task_bootstrapping) {
-      w3srv.on("/", handleRoot);
+      w3srv.on("/", handleWeeGloHome);   // Wee Glo: the settings checklist
+      w3srv.on("/all", handleRoot);       // every setting, for confident users
+      w3srv.on("/card", handleWeeGloCard);
       w3srv.on("/fwcheck", handleFwCheck);
       w3srv.on("/update", handleUpdate);
       w3srv.on("/savecfg", handleSaveConfig);
@@ -2576,6 +2739,8 @@ void setup() {
       w3srv.on("/getedititem", handleGetEditConfigItem);
       w3srv.on("/clearconfigflash", handleClearConfigFlash);
       w3srv.on("/carelink", handleCareLink);
+      w3srv.on("/lighttest", handleLightTest);
+      w3srv.on("/soundtest", handleSoundTest);
       w3srv.on("/inline", []() {
         w3srv.send(200, "text/plain", "this is inline and works as well");
       });
@@ -2602,6 +2767,7 @@ void setup() {
 
 // the loop routine runs over and over again forever
 void loop() {
+  improvLoop();   // Wee Glo: Wi-Fi from the install page, over USB
   if(!cfg.disable_web_server || is_task_bootstrapping) {
     dnsServer.processNextRequest();
     w3srv.handleClient();

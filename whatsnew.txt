@@ -1,0 +1,18 @@
+Wee Glo 2026111515
+- A finish screen after setup: what Wee Glo is doing now, what the lights and sounds mean, play the alarm once, and how to tell it is working.
+- When everything is set up, the pop-up on the settings page takes you back to DiabetesHub to finish.
+- The restart straight after joining the Wi-Fi is now a full restart, so its chime sounds the same as every other start.
+- Alarm and warning beeps: the side lights now flash between the beeps, not during them, so the sound stays clean.
+- No "no readings" beeps before CareLink has sent its first reading.
+- The start-up chime is softer and lower, and plays just before the lights start, so the small speaker no longer distorts.
+- Wee Glo settings now look like DiabetesHub, with the same light, dark or match my device choice.
+- A pop-up when all five steps are done, with what to do next.
+- Add your home Wi-Fi on the computer, straight after installing.
+- New Wee Glo settings page: five steps in order, each with a tick when done.
+- Side lights: on by default, red for lows, amber for highs, a light test, Wee Glo colours (navy, green and white) when Wee Glo comes on, and the unicorn rainbow for a 5.5 reading.
+- A soft start-up chime with the lights, in place of the old test beep. Switch it off on the Screen and sound page.
+- A Wee Glo start-up screen.
+- Fix: the screen no longer goes black on a Core2 when the side lights are on.
+- Irish time, with summer time changing by itself.
+- Every Wee Glo is now called WeeGlo plus a short code, such as WeeGlo-B6DC, on your Wi-Fi and for its own setup Wi-Fi.
+- Updates now come only from DiabetesHub.

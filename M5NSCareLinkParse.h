@@ -96,19 +96,23 @@ inline const char *trendToDirection(const char *t, bool haveReading) {
 
 // Pulls the OAuth authorization code out of whatever the user pasted: the full address
 // the browser ended on (…?code=XYZ&state=…), just "code=XYZ", or the bare code itself.
+// Wee Glo: also a whole Chrome Console line, "Failed to launch 'com.medtronic…?code=XYZ' because…",
+// so the code stops at a quote as well.
 // Returns false if nothing usable was found.
 inline bool extractCode(const char *in, char *out, size_t outLen) {
   if (in == nullptr || outLen < 2) return false;
   while (*in == ' ' || *in == '\t' || *in == '\r' || *in == '\n') in++;
   const char *p = strstr(in, "code=");
   // "code=" must start the string or follow ? / & / #, so "xcode=" or "code_challenge=" don't match
-  while (p != nullptr && p != in && p[-1] != '?' && p[-1] != '&' && p[-1] != '#')
+  while (p != nullptr && p != in && p[-1] != '?' && p[-1] != '&' && p[-1] != '#' &&
+         p[-1] != ' ' && p[-1] != '\n' && p[-1] != '\r' && p[-1] != '\t')
     p = strstr(p + 1, "code=");
   const char *start = p ? p + 5 : in;
   if (!p && (strchr(in, '?') || strchr(in, '=') || strstr(in, "://")))
     return false; // looks like a URL but has no code parameter
   size_t len = 0;
   while (start[len] && start[len] != '&' && start[len] != '#' && start[len] != ' ' &&
+         start[len] != '\'' && start[len] != '"' &&
          start[len] != '\r' && start[len] != '\n' && start[len] != '\t')
     len++;
   if (len == 0 || len >= outLen) return false;
