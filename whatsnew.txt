@@ -1,3 +1,11 @@
+Wee Glo 2026112202
+- Text size: tap Aa at the top of Wee Glo settings for Larger or Largest text.
+- CareLink sign-in now shows the short video right on the page.
+- Clearer waiting and saving: a "Saved" note after each save, and tidy pop-ups while Wee Glo looks for Wi-Fi, signs in or updates.
+- A new finish page: what Wee Glo is doing, every light including the unicorn rainbow, and Play beside each sound.
+- New starting alarm levels: low alarm 3.9 and high warning 14, in line with the HSE guideline, low warning 4.5, and no new readings after 15 minutes. Levels you've already saved stay the same.
+- Tidier Advanced settings, restart and "page not found" screens.
+
 Wee Glo 2026112201
 - Wee Glo is live: the settings pages now link to diabeteshub.ie, including Finish on DiabetesHub at the end of setup.
 

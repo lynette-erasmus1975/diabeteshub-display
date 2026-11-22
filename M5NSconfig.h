@@ -36,11 +36,11 @@ struct tConfig {
   float yellow_high = 9;
   float red_low = 3.9;
   float red_high = 11;
-  float snd_warning = 3.7;
-  float snd_alarm = 3.0;
+  float snd_warning = 4.5;  // Wee Glo starting levels: low alarm 3.9 (HSE low target), low warning 4.5
+  float snd_alarm = 3.9;
   float snd_warning_high = 14;
   float snd_alarm_high = 20;
-  int snd_no_readings = 20;
+  int snd_no_readings = 15;
   int snd_loop_error = 1; 
   int snd_warning_at_startup = 1;
   int snd_alarm_at_startup =0;

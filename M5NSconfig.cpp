@@ -103,12 +103,12 @@ void readConfigFromFlash(tConfig *cfg) {
     cfg->yellow_high = prefs.getFloat("yellow_high", 9.0);
     cfg->red_low = prefs.getFloat("red_low", 3.9);
     cfg->red_high = prefs.getFloat("red_high", 11.0);
-    cfg->snd_warning = prefs.getFloat("snd_warning", 3.7);
-    cfg->snd_alarm = prefs.getFloat("snd_alarm", 3.0);
+    cfg->snd_warning = prefs.getFloat("snd_warning", 4.5);
+    cfg->snd_alarm = prefs.getFloat("snd_alarm", 3.9);
     cfg->snd_warning_high = prefs.getFloat("snd_warn_high", 14.0);
     // Serial.printf("READ CFG Flash: cfg->snd_warning_high = %f\r\n", cfg->snd_warning_high);
     cfg->snd_alarm_high = prefs.getFloat("snd_alarm_high", 20.0);
-    cfg->snd_no_readings = prefs.getInt("snd_no_readings", 20);
+    cfg->snd_no_readings = prefs.getInt("snd_no_readings", 15);
     cfg->snd_loop_error = prefs.getInt("snd_loop_error", 1);
     cfg->snd_warning_at_startup = prefs.getInt("snd_warn_start", 1);
     cfg->snd_alarm_at_startup = prefs.getInt("snd_alarm_start", 0);
@@ -626,7 +626,7 @@ void readConfiguration(const char *iniFilename, tConfig *cfg) {
   }
   else {
     Serial.println("NO snd_warning defined");
-    cfg->snd_warning = 3.7;
+    cfg->snd_warning = 4.5;
   }
 
   if (ini.getValue("config", "snd_alarm", buffer, bufferLen)) {
@@ -638,7 +638,7 @@ void readConfiguration(const char *iniFilename, tConfig *cfg) {
   }
   else {
     Serial.println("NO snd_alarm defined");
-    cfg->snd_alarm = 3.0;
+    cfg->snd_alarm = 3.9;
   }
 
   if (ini.getValue("config", "snd_warning_high", buffer, bufferLen)) {
@@ -672,7 +672,7 @@ void readConfiguration(const char *iniFilename, tConfig *cfg) {
   }
   else {
     Serial.println("NO snd_no_readings defined -> 20 minutes");
-    cfg->snd_no_readings = 20;
+    cfg->snd_no_readings = 15;
   }
 
   if (ini.getValue("config", "snd_loop_error", buffer, bufferLen)) {
