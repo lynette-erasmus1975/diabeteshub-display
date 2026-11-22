@@ -1,3 +1,6 @@
+Wee Glo 2026112201
+- Wee Glo is live: the settings pages now link to diabeteshub.ie, including Finish on DiabetesHub at the end of setup.
+
 Wee Glo 2026111515
 - A finish screen after setup: what Wee Glo is doing now, what the lights and sounds mean, play the alarm once, and how to tell it is working.
 - When everything is set up, the pop-up on the settings page takes you back to DiabetesHub to finish.

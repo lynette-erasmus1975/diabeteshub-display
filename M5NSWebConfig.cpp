@@ -63,7 +63,7 @@ static bool restartPending = false;
 // Where the DiabetesHub Wee Glo guide lives. The test build points at the test site; the release build
 // MUST be built with "https://diabeteshub.ie" (the guide is only on the live site from launch day).
 #ifndef WG_SITE
-#define WG_SITE "https://dev.diabeteshub.pages.dev"
+#define WG_SITE "https://diabeteshub.ie"
 #endif
 extern void lcdSetBrightness(uint8_t brightness);
 static const char* WG_BACK_EARLY = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 6l-6 6 6 6\"/></svg>";

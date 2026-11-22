@@ -101,7 +101,7 @@ SHT3X sht30;
 #include "microdot.h"
 MicroDot MD;
 
-String M5NSversion("2026111515");   // Wee Glo version: yyyymmddnn, raise it for every release
+String M5NSversion("2026112201");   // Wee Glo version: yyyymmddnn, raise it for every release
 
 #define VIBfreq 10000
 #define VIBchannel 14
