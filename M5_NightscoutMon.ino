@@ -101,7 +101,7 @@ SHT3X sht30;
 #include "microdot.h"
 MicroDot MD;
 
-String M5NSversion("2026112202");   // Wee Glo version: yyyymmddnn, raise it for every release
+String M5NSversion("2026112203");   // Wee Glo version: yyyymmddnn, raise it for every release
 
 #define VIBfreq 10000
 #define VIBchannel 14
@@ -555,7 +555,7 @@ void handleSoundTest() {
 void handleLightTest() {
   String body;
   if (cfg.LED_strip_mode == 0) {
-    body = "<p style=\"margin:0\">The side lights are switched off. Choose <b>Warnings and alarms</b> under Side lights, save, then try again.</p>";
+    body = "<p style=\"margin:0\">The side lights are switched off. Choose <b>Always on</b> under Side lights, save, then try again.</p>";
   } else {
     body = "<p style=\"margin:0\">Watch the display now. You'll see <b>red</b> (low), <b>amber</b> (high), <b>blue</b> (no readings) and <b>green</b> (in range) "
            "for 2 seconds each, then the <b>unicorn rainbow</b>. It takes about 12 seconds. There's no sound.</p>";

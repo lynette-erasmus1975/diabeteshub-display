@@ -124,7 +124,7 @@ void readConfigFromFlash(tConfig *cfg) {
     cfg->display_rotation = prefs.getInt("display_rotate", 1);
     cfg->invert_display = prefs.getInt("invert_display", -1);
     cfg->temperature_unit = prefs.getInt("temperat_unit", 1);
-    cfg->LED_strip_mode = prefs.getInt("LED_strip_mode", 2);   // Wee Glo: side lights on (warnings and alarms) by default
+    cfg->LED_strip_mode = prefs.getInt("LED_strip_mode", 3);   // Wee Glo: side lights always on by default (green in range)
     cfg->LED_strip_pin = prefs.getInt("LED_strip_pin", 15);
     cfg->LED_strip_count = prefs.getInt("LED_strip_count", 10);
     cfg->LED_strip_brightness = prefs.getInt("LED_strip_brigh", 10);

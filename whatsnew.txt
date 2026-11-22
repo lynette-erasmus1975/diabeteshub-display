@@ -1,3 +1,9 @@
+Wee Glo 2026112203
+- Side lights are now Always on for a new Wee Glo: green while in range, red for lows, amber for highs. A setting you've already saved stays the same.
+- Clearer side light names on the finish page.
+- Tidy Wi-Fi messages on Wee Glo's screen when you change the Wi-Fi.
+- A Wee Glo icon on the browser tab for Wee Glo settings.
+
 Wee Glo 2026112202
 - Text size: tap Aa at the top of Wee Glo settings for Larger or Largest text.
 - CareLink sign-in now shows the short video right on the page.

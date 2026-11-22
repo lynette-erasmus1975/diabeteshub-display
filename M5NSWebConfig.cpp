@@ -75,6 +75,7 @@ static void pageHeadOpen(String& m, const char* extraMeta) {
   m += "<!DOCTYPE HTML>\r\n<html lang=\"en-IE\">\r\n<head>\r\n";
   m += "<meta charset=\"utf-8\">\r\n";
   m += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\r\n";
+  m += "<link rel=\"icon\" href=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='3' width='28' height='26' rx='6' fill='%231E3A8A'/%3E%3Crect x='0.5' y='9' width='2.5' height='14' rx='1.2' fill='%234ADE80'/%3E%3Crect x='29' y='9' width='2.5' height='14' rx='1.2' fill='%234ADE80'/%3E%3Crect x='6' y='7' width='20' height='18' rx='3' fill='%230B1020'/%3E%3Cpath d='M9 19l4-4 3 3 6-6' fill='none' stroke='%234ADE80' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\">\r\n";   // the Wee Glo mini icon on the browser tab
   if (extraMeta && extraMeta[0]) m += extraMeta;
   // Wee Glo look, matching diabeteshub.ie, light and dark
   m += "<script>(function(){var t='light';try{var s=localStorage.getItem('dhub_theme');if(s==='dark'||s==='system')t=s;}catch(e){}document.documentElement.setAttribute('data-theme',t);})();</script>\r\n";
@@ -1690,7 +1691,7 @@ void wgFinishPage(String& m) {
   m += "<div class=\"fin\"><div class=\"hero\">" "<svg class=\"dev\" viewBox=\"0 0 160 160\" width=\"112\" height=\"112\" aria-hidden=\"true\"><rect x=\"2\" y=\"2\" width=\"156\" height=\"156\" rx=\"18\" fill=\"#E5E7EB\" stroke=\"#CBD5E1\" stroke-width=\"2\"/><rect x=\"12\" y=\"12\" width=\"136\" height=\"136\" rx=\"10\" fill=\"#0A0A0A\"/><rect x=\"22\" y=\"22\" width=\"116\" height=\"90\" rx=\"2\" fill=\"#0B1020\"/><text x=\"26\" y=\"35\" font-family=\"Arial,Helvetica,sans-serif\" font-size=\"9\" font-weight=\"700\" fill=\"#E5E7EB\">14:42 07.11.</text><rect x=\"106\" y=\"25\" width=\"28\" height=\"22\" rx=\"4\" fill=\"#E0F2FE\"/><text x=\"120\" y=\"35\" text-anchor=\"middle\" font-family=\"Arial,Helvetica,sans-serif\" font-size=\"9\" fill=\"#1E3A8A\">5</text><text x=\"120\" y=\"44\" text-anchor=\"middle\" font-family=\"Arial,Helvetica,sans-serif\" font-size=\"6.5\" font-weight=\"700\" fill=\"#1E3A8A\">min</text><text x=\"26\" y=\"55\" font-family=\"Arial,Helvetica,sans-serif\" font-size=\"13\" font-weight=\"700\" fill=\"#F8FAFC\">+0.0</text><text x=\"28\" y=\"88\" font-family=\"Arial,Helvetica,sans-serif\" font-size=\"33\" font-weight=\"700\" fill=\"#4ADE80\">7.5</text><path d=\"M88 77h11m-5-6l6 6-6 6\" stroke=\"#4ADE80\" stroke-width=\"3\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M106 59h29M106 66h29M106 88h29M106 92h29\" stroke=\"#CBD5E1\" stroke-width=\".8\"/><g fill=\"#4ADE80\"><circle cx=\"107\" cy=\"77\" r=\"1.2\"/><circle cx=\"110\" cy=\"76.5\" r=\"1.2\"/><circle cx=\"113\" cy=\"76\" r=\"1.2\"/><circle cx=\"116\" cy=\"75.5\" r=\"1.2\"/><circle cx=\"119\" cy=\"75\" r=\"1.2\"/><circle cx=\"122\" cy=\"75.5\" r=\"1.2\"/><circle cx=\"125\" cy=\"76\" r=\"1.2\"/><circle cx=\"128\" cy=\"76\" r=\"1.2\"/><circle cx=\"131\" cy=\"76\" r=\"1.2\"/><circle cx=\"134\" cy=\"76\" r=\"1.2\"/></g><g fill=\"none\" stroke=\"#CBD5E1\" stroke-width=\"1\"><circle cx=\"45\" cy=\"104\" r=\"2.5\"/><path d=\"M45 99v1.5M45 107.5v1.5M40 104h1.5M48.5 104h1.5\"/><circle cx=\"80\" cy=\"104\" r=\"3\"/><rect x=\"113\" y=\"100\" width=\"4\" height=\"7\" rx=\".8\"/></g><g fill=\"none\" stroke=\"#334155\" stroke-width=\"1\"><circle cx=\"45\" cy=\"128\" r=\"3.5\"/><circle cx=\"80\" cy=\"128\" r=\"3.5\"/><circle cx=\"115\" cy=\"128\" r=\"3.5\"/></g></svg>" "<div><span class=\"badge\">"; m += wgSv("<path d=\"M5 12.5l4.5 4.5L19 7.5\"/>", 16);
   m += " All set up</span><h1 id=\"fint\" tabindex=\"-1\">Wee Glo is ready for tonight</h1><p>Here's what it's doing now, and what each light and sound means.</p></div></div>\r\n";
   int lm = (cfg.LED_strip_mode >= 0 && cfg.LED_strip_mode < 4) ? cfg.LED_strip_mode : 0;
-  const char* lt[4] = {"Side lights off", "Side lights with sound", "Side lights on", "Side lights always on"};
+  const char* lt[4] = {"Side lights off", "Side lights with sound", "Side lights for warnings and alarms", "Side lights always on"};
   const char* ls[4] = {"Turn them on if you have the battery base", "They flash with each sound", "Off while the reading is in range", "Green while the reading is in range"};
   m += "<div class=\"grid\">";
   String w = htmlEscape(WiFi.SSID()); w += ", anywhere it reaches";
@@ -1872,9 +1873,9 @@ static void wgShowCard(const String& c, const String& msg, bool msgOk) {
   } else if (c.equals("lights")) {
     wgCardForm(m, "lights", 4, "Side lights");
     m += note;
-    m += "<p>For the battery base. The lights glow red for lows and amber for highs, so you can see them across the room. When Wee Glo comes on, they glow navy, green and white for a few seconds. At 5.5, our unicorn number, they run through the rainbow. It's a little celebration, not a warning.</p>\r\n";
-    const char* ledOpts[4] = {"Warnings and alarms (our pick)", "Light with sound", "Always on", "Off"};
-    const int ledVals[4] = {2, 1, 3, 0};
+    m += "<p>For the battery base. The lights glow green while in range, red for lows and amber for highs, so you can see them across the room. When Wee Glo comes on, they glow navy, green and white for a few seconds. At 5.5, our unicorn number, they run through the rainbow. It's a little celebration, not a warning.</p>\r\n";
+    const char* ledOpts[4] = {"Always on (our pick)", "Warnings and alarms", "Light with sound", "Off"};
+    const int ledVals[4] = {3, 2, 1, 0};
     wgField(m, "lm", "Show", wgSelect("lm", ledOpts, ledVals, 4, cfg.LED_strip_mode));
     wgField(m, "lb", "Brightness (%)", wgInput("lb", String(cfg.LED_strip_brightness), "text", "inputmode=\"numeric\""), "10 is gentle at night. 100 is very bright.");
     m += "<p style=\"margin-top:12px\"><a class=\"btn o\" href=\"/lighttest\">Run the light test</a></p><p class=\"small\">Save first, then run the test.</p>\r\n";

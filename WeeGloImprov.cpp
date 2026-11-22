@@ -13,6 +13,7 @@
 #include "M5NSconfig.h"
 #include "externs.h"
 #include "WeeGloImprov.h"
+#include "Free_Fonts.h"
 
 extern void saveConfigToFlash(tConfig *cfg);
 
@@ -85,14 +86,24 @@ static void rememberNetwork(const char *ssid, const char *pass) {
   strlcpy(cfg.wlanpass[slot], pass, sizeof(cfg.wlanpass[slot]));
 }
 
-static void showOnScreen(const char *line1, const char *line2) {
-  M5.Lcd.fillScreen(BLACK);
-  M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-  M5.Lcd.setTextSize(2);
-  M5.Lcd.setCursor(10, 90);
-  M5.Lcd.println(line1);
-  M5.Lcd.setCursor(10, 120);
-  M5.Lcd.println(line2);
+// Wi-Fi messages on Wee Glo's own screen, in the Wee Glo colours: navy, a bold white line and the network
+// name in green, both centred. The text size and font are set here every time: after "Change Wi-Fi" the
+// screen was still on the reading's font at double size, so the words ran off the edge and over each other.
+static void showOnScreen(const char *line1, const char *line2, bool problem = false) {
+  const uint16_t navy = M5.Lcd.color565(30, 58, 138), green = M5.Lcd.color565(134, 239, 172), amber = M5.Lcd.color565(252, 211, 77);
+  M5.Lcd.fillScreen(navy);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextDatum(MC_DATUM);
+  M5.Lcd.setFreeFont(FSSB12);
+  M5.Lcd.setTextColor(TFT_WHITE, navy);
+  M5.Lcd.drawString(line1, 160, 100);
+  M5.Lcd.setFreeFont(FSS12);
+  M5.Lcd.setTextColor(problem ? amber : green, navy);   // amber when it could not join, so it never looks like it worked
+  String l2(line2);
+  while (l2.length() > 1 && M5.Lcd.textWidth(l2) > 290) l2.remove(l2.length() - 1);   // a long network name is cut short
+  if (l2.length() < strlen(line2)) { l2.remove(l2.length() - 1); l2 += "..."; }
+  M5.Lcd.drawString(l2, 160, 136);
+  M5.Lcd.setTextDatum(TL_DATUM);
 }
 
 static void handleWiFi(const uint8_t *d, uint8_t len) {
@@ -118,7 +129,7 @@ static void handleWiFi(const uint8_t *d, uint8_t len) {
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) delay(250);
 
   if (WiFi.status() != WL_CONNECTED) {
-    showOnScreen("Could not join", "Check the password");
+    showOnScreen("Could not join", "Check the password", true);
     sendError(E_CONNECT);
     sendState(ST_READY);
     if (cfg.is_task_bootstrapping) {
