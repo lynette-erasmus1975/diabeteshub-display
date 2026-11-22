@@ -1,3 +1,8 @@
+Wee Glo 2026112204
+- The unicorn number: a steady 5.5 in the daytime (7am to 9pm) shows a unicorn on Wee Glo's screen with a little sparkle and the rainbow lights, then the reading comes back. Try it from "What Wee Glo is doing".
+- Side lights now start at 25% brightness on a new Wee Glo. A brightness you've already saved stays the same.
+- A brighter "all set up" page: Wee Glo is ready, what's next with icons, and a clear button to see what Wee Glo is doing.
+
 Wee Glo 2026112203
 - Side lights are now Always on for a new Wee Glo: green while in range, red for lows, amber for highs. A setting you've already saved stays the same.
 - Clearer side light names on the finish page.

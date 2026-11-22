@@ -90,6 +90,7 @@ Adafruit_NeoPixel pixels(10, 15, NEO_GRB + NEO_KHZ800);
 #include "M5NSCareLink.h"
 #include "WeeGloImprov.h"
 #include "WeeGloBoot.h"
+#include "WeeGloUnicorn.h"
 
 #include <Wire.h>     //The DHT12 uses I2C comunication.
 #include "DHT12.h"
@@ -101,7 +102,7 @@ SHT3X sht30;
 #include "microdot.h"
 MicroDot MD;
 
-String M5NSversion("2026112203");   // Wee Glo version: yyyymmddnn, raise it for every release
+String M5NSversion("2026112204");   // Wee Glo version: yyyymmddnn, raise it for every release
 
 #define VIBfreq 10000
 #define VIBchannel 14
@@ -470,6 +471,10 @@ static void dhChimeQuiet() {
   pixels.show();
   delay(400);
 }
+static void dhChimeNoteHz(uint16_t hz, uint16_t ms) {  // one note at the chime's level (see dhChimeNote)
+  M5.Speaker.setVolume(esp_reset_reason() == ESP_RST_SW ? 12 : 40);
+  M5.Speaker.tone(hz, ms);
+}
 static void dhChimeNote(int i) {
   // A fixed level, not tied to the warning volume. Tested on a Core2: 64 with these notes was too loud, 32 a
   // little too soft, so 40. The lights stay off until the chime ends, so it doesn't crackle.
@@ -532,13 +537,60 @@ void dhLightsBackToNormal() {
   else pixels.clear();
   pixels.show();
 }
+// A new 5.5 reading is noted here while the page is drawn; the unicorn moment itself runs straight after
+// the page is finished (dhUnicornMoment), so it never interrupts the drawing. It only celebrates a steady
+// 5.5 (flat, or rising gently), never one that is falling, and only in the daytime (7am to 9pm), so a
+// bright screen, lights or sound never wake anyone at night. At night the 5.5 simply shows as normal.
+static bool dhUnicornPending = false;
+static int dhUnicornAngle = 0;
+static bool dhDaytime() {
+  struct tm ut;
+  return getLocalTime(&ut, 50) && ut.tm_hour >= 7 && ut.tm_hour < 21;
+}
 void dhUnicornRainbow(struct NSinfo *ns) {
-  if (cfg.LED_strip_mode == 0) return;
   if (lroundf(ns->sensSgv * 10.0f) != 55) return;
   if (ns->sensTime == 0 || ns->sensTime == dhUnicornShownFor) return;
   dhUnicornShownFor = ns->sensTime;
-  dhRainbowRun();
-  dhLightsBackToNormal();
+  if (ns->arrowAngle != 0 && ns->arrowAngle != -45) return;   // Flat or FortyFiveUp only
+  if (!dhDaytime()) return;
+  dhUnicornAngle = ns->arrowAngle;
+  dhUnicornPending = true;
+}
+// The unicorn moment: the unicorn picture fills the screen with the reading and its trend arrow in a navy
+// badge, a short sparkle plays, and the side lights (if switched on) run one rainbow turn, about 4 seconds.
+// Then the reading page comes back straight away, so Wee Glo answers its buttons again.
+// test = true: from "Try it" on the Wee Glo settings finish page, any time of day.
+void drawArrow(int x, int y, int asize, int aangle, int pwidth, int plength, uint16_t color);
+void dhUnicornShow(bool test) {
+  M5.Lcd.drawJpg(weeglo_unicorn_jpg, sizeof(weeglo_unicorn_jpg), 0, 0);
+  const uint16_t navy = M5.Lcd.color565(30, 58, 138), green = M5.Lcd.color565(134, 239, 172);
+  M5.Lcd.fillRoundRect(176, 8, 136, 56, 12, navy);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setFreeFont(FSSB24);
+  M5.Lcd.setTextDatum(MC_DATUM);
+  M5.Lcd.setTextColor(green, navy);
+  M5.Lcd.drawString(cfg.show_mgdl == 1 ? "99" : "5.5", 228, 38);
+  M5.Lcd.setTextDatum(TL_DATUM);
+  drawArrow(290, 36, 8, (test ? 0 : dhUnicornAngle) + 85, 22, 22, green);
+  // The sparkle: rising notes, then a twinkle, at the chime's level. It plays before the lights start,
+  // so the small speaker doesn't crackle.
+  static const uint16_t hz[7] = {1047, 1319, 1568, 2093, 0, 1568, 2093};
+  static const uint16_t ms[7] = {80, 80, 80, 160, 60, 70, 220};
+  dhChimeQuiet();
+  for (int i = 0; i < 7; i++) {
+    if (hz[i]) { dhChimeNoteHz(hz[i], ms[i]); while (M5.Speaker.isPlaying()) delay(1); }
+    else delay(ms[i]);
+    delay(20);
+  }
+  if (cfg.LED_strip_mode != 0) { dhRainbowRun(1); dhLightsBackToNormal(); } else delay(3000);
+  M5.Lcd.clear(BLACK);
+  draw_page();
+}
+void dhUnicornMoment() {
+  if (!dhUnicornPending) return;
+  dhUnicornPending = false;
+  if (dispPage >= PAGE_ERRLOG) return;
+  dhUnicornShow(false);
 }
 
 // Light test, opened from "Test the side lights" on the settings page: shows red (low), amber (high),
@@ -546,6 +598,7 @@ void dhUnicornRainbow(struct NSinfo *ns) {
 void wgSendSimplePage(const char* title, const String& body, const char* backHref, const char* backLabel);  // M5NSWebConfig.cpp
 // Sound test from the Wee Glo finish screen: plays the alarm or the warning once, with the side lights.
 void handleSoundTest() {
+  if (w3srv.arg("k") == "unicorn") { w3srv.send(204, "text/plain", ""); dhUnicornShow(true); return; }
   bool alarm = w3srv.arg("k") != "warning";
   w3srv.send(204, "text/plain", "");
   ledAlertKind = DH_LED_LOW;
@@ -2806,6 +2859,7 @@ void loop() {
       }
       rcnt++;
       draw_page();
+      dhUnicornMoment();
       msCount = millis();  
       // Serial.print("msCount = "); Serial.println(msCount);
       Serial.print("cfg.LED_strip_mode = "); Serial.println(cfg.LED_strip_mode);

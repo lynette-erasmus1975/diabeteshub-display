@@ -127,7 +127,7 @@ void readConfigFromFlash(tConfig *cfg) {
     cfg->LED_strip_mode = prefs.getInt("LED_strip_mode", 3);   // Wee Glo: side lights always on by default (green in range)
     cfg->LED_strip_pin = prefs.getInt("LED_strip_pin", 15);
     cfg->LED_strip_count = prefs.getInt("LED_strip_count", 10);
-    cfg->LED_strip_brightness = prefs.getInt("LED_strip_brigh", 10);
+    cfg->LED_strip_brightness = prefs.getInt("LED_strip_brigh", 25);
     cfg->vibration_mode = prefs.getInt("vibration_mode", 0);
     cfg->vibration_pin = prefs.getInt("vibration_pin", 26);
     cfg->vibration_strength = prefs.getInt("vibration_stren", 512);
@@ -781,8 +781,8 @@ void readConfiguration(const char *iniFilename, tConfig *cfg) {
     Serial.println(cfg->LED_strip_brightness);
   }
   else {
-    Serial.println("NO LED_strip_brightness defined -> 10");
-    cfg->LED_strip_brightness = 10;
+    Serial.println("NO LED_strip_brightness defined -> 25");
+    cfg->LED_strip_brightness = 25;
   }
 
   if (ini.getValue("config", "vibration_mode", buffer, bufferLen)) {
